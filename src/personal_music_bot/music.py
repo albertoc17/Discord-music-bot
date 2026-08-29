@@ -30,15 +30,46 @@ class Music(commands.Cog):
     async def _connect(self, interaction: discord.Interaction) -> GuildPlayer:
         if not interaction.guild or not interaction.guild_id:
             raise MusicCommandError("Este comando solo funciona dentro de un servidor.")
+
         member = interaction.user
-        if not isinstance(member, discord.Member) or not member.voice or not member.voice.channel:
+        if not isinstance(member, discord.Member):
+            raise MusicCommandError("Primero entra a un canal de voz.")
+
+        voice_state = member.voice
+        if not voice_state or not voice_state.channel:
+            try:
+                voice_state = await member.fetch_voice()
+            except discord.NotFound as exc:
+                raise MusicCommandError("Primero entra a un canal de voz.") from exc
+            except discord.Forbidden as exc:
+                logger.warning(
+                    "Discord nego consultar el estado de voz del usuario %s en el servidor %s",
+                    member.id,
+                    interaction.guild_id,
+                )
+                raise MusicCommandError(
+                    "No pude consultar tu canal de voz. Revisa los permisos Ver canal, "
+                    "Conectar y Hablar de King Arturo."
+                ) from exc
+            except discord.HTTPException as exc:
+                logger.warning(
+                    "Fallo al consultar el estado de voz del usuario %s: %s",
+                    member.id,
+                    exc,
+                )
+                raise MusicCommandError(
+                    "Discord no permitio consultar tu canal de voz. Intenta de nuevo."
+                ) from exc
+
+        voice_channel = voice_state.channel
+        if not isinstance(voice_channel, (discord.VoiceChannel, discord.StageChannel)):
             raise MusicCommandError("Primero entra a un canal de voz.")
 
         voice = interaction.guild.voice_client
-        if voice and voice.channel != member.voice.channel:
-            await voice.move_to(member.voice.channel)
+        if voice and voice.channel != voice_channel:
+            await voice.move_to(voice_channel)
         elif not voice:
-            voice = await member.voice.channel.connect()
+            voice = await voice_channel.connect()
 
         player = self.players.get(interaction.guild_id)
         player.set_voice(voice)
