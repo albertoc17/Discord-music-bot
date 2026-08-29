@@ -170,15 +170,8 @@ class Music(commands.Cog):
         if not panel or not player:
             return
         try:
-            # Eliminar el panel anterior
-            await panel.delete()
-            # Crear uno nuevo al fondo
-            if panel.channel:
-                new_panel = await panel.channel.send(
-                    embed=self._control_panel_embed(player), 
-                    view=MusicControls(self)
-                )
-                self._control_panels[guild_id] = new_panel
+            # Editar el mensaje existente en lugar de eliminarlo y recrearlo
+            await panel.edit(embed=self._control_panel_embed(player), view=MusicControls(self))
         except discord.NotFound:
             self._control_panels.pop(guild_id, None)
         except discord.HTTPException as exc:
