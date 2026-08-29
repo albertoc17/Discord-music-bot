@@ -13,6 +13,7 @@ from personal_music_bot.messages import now_playing_message, playback_failed_mes
 logger = logging.getLogger(__name__)
 
 StatusCallback = Callable[[str], Awaitable[None]]
+TrackCallback = Callable[[Track | None], Awaitable[None]]
 
 
 class GuildPlayer:
@@ -35,6 +36,7 @@ class GuildPlayer:
         self._queue_ready = asyncio.Event()
         self._next = asyncio.Event()
         self._status_callback: StatusCallback | None = None
+        self._track_callback: TrackCallback | None = None
         self._cancel_current = False
         self._closed = False
         self._task = asyncio.create_task(self._player_loop(), name=f"player-{guild_id}")
@@ -50,6 +52,9 @@ class GuildPlayer:
 
     def set_status_callback(self, callback: StatusCallback) -> None:
         self._status_callback = callback
+
+    def set_track_callback(self, callback: TrackCallback) -> None:
+        self._track_callback = callback
 
     def enqueue(self, tracks: list[Track]) -> None:
         self._queue.extend(tracks)
@@ -136,6 +141,7 @@ class GuildPlayer:
                     event_loop.call_soon_threadsafe(self._next.set)
 
                 self.voice.play(source, after=after_playback)
+                await self._notify_track_changed(track)
                 await self._notify(now_playing_message(track.title, track.requester_name))
                 await self._next.wait()
             except (MediaError, discord.ClientException, OSError) as exc:
@@ -146,6 +152,7 @@ class GuildPlayer:
                 await self._notify(f"No pude reproducir **{track.title}**.")
             finally:
                 self.current = None
+                await self._notify_track_changed(None)
 
     async def _notify(self, message: str) -> None:
         if not self._status_callback:
@@ -154,6 +161,18 @@ class GuildPlayer:
             await self._status_callback(message)
         except discord.HTTPException as exc:
             logger.warning("No se pudo enviar el estado en guild %s: %s", self.guild_id, exc)
+
+    async def _notify_track_changed(self, track: Track | None) -> None:
+        if not self._track_callback:
+            return
+        try:
+            await self._track_callback(track)
+        except discord.HTTPException as exc:
+            logger.warning(
+                "No se pudo actualizar el panel en guild %s: %s",
+                self.guild_id,
+                exc,
+            )
 
 
 class PlayerManager:

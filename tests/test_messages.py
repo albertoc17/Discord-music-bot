@@ -38,3 +38,9 @@ def test_now_playing_message_includes_requester(monkeypatch) -> None:
 
     assert "**Tren al sur**" in result
     assert "Alberto" in result
+
+
+def test_leaving_message_uses_chilean_copy(monkeypatch) -> None:
+    monkeypatch.setattr(messages, "choice", lambda options: options[0])
+
+    assert messages.leaving_message() == "Chao, giles culiaos. 👋"

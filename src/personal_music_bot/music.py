@@ -9,6 +9,7 @@ from discord.ext import commands
 from personal_music_bot.config import Settings
 from personal_music_bot.media import MediaError, MediaResolver, Track, format_duration
 from personal_music_bot.messages import (
+    leaving_message,
     not_found_message,
     playlist_queued_message,
     searching_message,
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 class Music(commands.Cog):
     def __init__(self, bot: commands.Bot, settings: Settings) -> None:
         self.bot = bot
+        self._control_panels: dict[int, discord.Message] = {}
         self.resolver = MediaResolver(settings.max_playlist_items)
         self.players = PlayerManager(
             resolver=self.resolver,
@@ -29,8 +31,11 @@ class Music(commands.Cog):
             volume=settings.default_volume,
             idle_timeout=settings.idle_timeout_seconds,
         )
+        self._persistent_controls = MusicControls(self)
+        self.bot.add_view(self._persistent_controls)
 
     async def cog_unload(self) -> None:
+        self._persistent_controls.stop()
         await self.players.close_all()
 
     async def _connect(self, interaction: discord.Interaction) -> GuildPlayer:
@@ -86,7 +91,74 @@ class Music(commands.Cog):
                 await channel.send(message)
 
         player.set_status_callback(send_status)
+
+        async def update_panel(_track: Track | None) -> None:
+            await self._update_control_panel(interaction.guild_id)
+
+        player.set_track_callback(update_panel)
+        await self._ensure_control_panel(interaction.guild_id, voice_channel, player)
         return player
+
+    @staticmethod
+    def _control_panel_embed(player: GuildPlayer) -> discord.Embed:
+        track = player.current
+        if track:
+            description = f"[{track.title}]({track.webpage_url})"
+            color = discord.Color.green()
+        else:
+            description = "No hay ninguna weá sonando ahora mismo."
+            color = discord.Color.blurple()
+
+        embed = discord.Embed(
+            title="🎛️ Panel de Arturo",
+            description=description,
+            color=color,
+        )
+        if track:
+            embed.add_field(name="Duración", value=format_duration(track.duration))
+            embed.add_field(name="Pedido por", value=track.requester_name)
+            if track.thumbnail:
+                embed.set_thumbnail(url=track.thumbnail)
+        embed.add_field(name="En cola", value=str(len(player.queue)))
+        embed.set_footer(text="Usa los botones para controlar la música")
+        return embed
+
+    async def _ensure_control_panel(
+        self,
+        guild_id: int,
+        voice_channel: discord.VoiceChannel | discord.StageChannel,
+        player: GuildPlayer,
+    ) -> None:
+        embed = self._control_panel_embed(player)
+        existing = self._control_panels.get(guild_id)
+        if existing and existing.channel.id == voice_channel.id:
+            try:
+                await existing.edit(embed=embed, view=MusicControls(self))
+                return
+            except discord.NotFound:
+                self._control_panels.pop(guild_id, None)
+            except discord.HTTPException as exc:
+                logger.warning("No se pudo refrescar el panel en guild %s: %s", guild_id, exc)
+                return
+
+        try:
+            panel = await voice_channel.send(embed=embed, view=MusicControls(self))
+        except (discord.Forbidden, discord.HTTPException) as exc:
+            logger.warning("No se pudo publicar el panel en guild %s: %s", guild_id, exc)
+            return
+        self._control_panels[guild_id] = panel
+
+    async def _update_control_panel(self, guild_id: int) -> None:
+        panel = self._control_panels.get(guild_id)
+        player = self.players.find(guild_id)
+        if not panel or not player:
+            return
+        try:
+            await panel.edit(embed=self._control_panel_embed(player), view=MusicControls(self))
+        except discord.NotFound:
+            self._control_panels.pop(guild_id, None)
+        except discord.HTTPException as exc:
+            logger.warning("No se pudo actualizar el panel en guild %s: %s", guild_id, exc)
 
     async def _search_and_enqueue(
         self,
@@ -100,6 +172,7 @@ class Music(commands.Cog):
             requester_name=requester.display_name,
         )
         player.enqueue(tracks)
+        await self._update_control_panel(player.guild_id)
         return tracks
 
     @staticmethod
@@ -210,7 +283,8 @@ class Music(commands.Cog):
         if player.voice and player.voice.is_connected():
             await player.voice.disconnect(force=True)
             player.voice = None
-        await interaction.response.send_message("Ya cabros, me fui del canal. Nos vimos. 👋")
+        await self._update_control_panel(player.guild_id)
+        await interaction.response.send_message(leaving_message())
 
     async def cog_app_command_error(
         self, interaction: discord.Interaction, error: app_commands.AppCommandError
@@ -232,3 +306,107 @@ class Music(commands.Cog):
 
 class MusicCommandError(app_commands.AppCommandError):
     pass
+
+
+class MusicControls(discord.ui.View):
+    def __init__(self, music: Music) -> None:
+        super().__init__(timeout=None)
+        self.music = music
+
+    async def _player_for(self, interaction: discord.Interaction) -> GuildPlayer | None:
+        if not interaction.guild_id or not isinstance(interaction.user, discord.Member):
+            await interaction.response.send_message(
+                "Este panel funciona dentro del servidor, po.",
+                ephemeral=True,
+            )
+            return None
+
+        player = self.music.players.find(interaction.guild_id)
+        if not player or not player.voice or not player.voice.is_connected():
+            await interaction.response.send_message(
+                "Arturo no está conectado a ningún canal de voz.",
+                ephemeral=True,
+            )
+            return None
+
+        member_channel = interaction.user.voice.channel if interaction.user.voice else None
+        if member_channel != player.voice.channel:
+            await interaction.response.send_message(
+                "Métete al mismo canal de voz que Arturo para usar los botones, po.",
+                ephemeral=True,
+            )
+            return None
+        return player
+
+    @discord.ui.button(
+        label="Play / Pausa",
+        emoji="⏯️",
+        style=discord.ButtonStyle.primary,
+        custom_id="arturo:music:toggle",
+    )
+    async def toggle_playback(
+        self,
+        interaction: discord.Interaction,
+        _button: discord.ui.Button[MusicControls],
+    ) -> None:
+        player = await self._player_for(interaction)
+        if not player or not player.voice:
+            return
+
+        if player.voice.is_paused():
+            player.voice.resume()
+            message = "Ya po, seguimos con la música. ▶️"
+        elif player.voice.is_playing():
+            player.voice.pause()
+            message = "Ya, dejé la música en pausa. ⏸️"
+        else:
+            message = "No está sonando ni una weá ahora mismo."
+        await interaction.response.send_message(message, ephemeral=True)
+
+    @discord.ui.button(
+        label="Stop",
+        emoji="⏹️",
+        style=discord.ButtonStyle.danger,
+        custom_id="arturo:music:stop",
+    )
+    async def stop_music(
+        self,
+        interaction: discord.Interaction,
+        _button: discord.ui.Button[MusicControls],
+    ) -> None:
+        player = await self._player_for(interaction)
+        if not player:
+            return
+
+        removed = player.stop()
+        await self.music._update_control_panel(player.guild_id)
+        await interaction.response.send_message(
+            f"Corté la música y saqué {removed} temas de la cola.",
+            ephemeral=True,
+        )
+
+    @discord.ui.button(
+        label="Siguiente",
+        emoji="⏭️",
+        style=discord.ButtonStyle.secondary,
+        custom_id="arturo:music:next",
+    )
+    async def next_track(
+        self,
+        interaction: discord.Interaction,
+        _button: discord.ui.Button[MusicControls],
+    ) -> None:
+        player = await self._player_for(interaction)
+        if not player:
+            return
+
+        if not player.skip():
+            await interaction.response.send_message(
+                "No hay ningún tema pa saltar.",
+                ephemeral=True,
+            )
+            return
+        await interaction.response.send_message(
+            "Chao nomás con ese tema. Vamos al siguiente.",
+            ephemeral=True,
+        )

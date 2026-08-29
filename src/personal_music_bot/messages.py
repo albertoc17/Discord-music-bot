@@ -39,6 +39,13 @@ _PLAYBACK_FAILED = (
     "Ese tema se puso mañoso: no pude reproducir **{title}**.",
 )
 
+_LEAVING = (
+    "Chao, giles culiaos. 👋",
+    "Ya cabros, me fui. Pórtense como las weas nomás.",
+    "Me aburrí de ustedes, me viro. Chao pescao. 🐟",
+    "Hasta aquí llegó el carrete, manga de weones. Nos vimos.",
+)
+
 
 def searching_message() -> str:
     return choice(_SEARCHING)
@@ -62,3 +69,7 @@ def now_playing_message(title: str, requester: str) -> str:
 
 def playback_failed_message(title: str) -> str:
     return choice(_PLAYBACK_FAILED).format(title=title)
+
+
+def leaving_message() -> str:
+    return choice(_LEAVING)

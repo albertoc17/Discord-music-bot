@@ -64,6 +64,11 @@ Tambien queda instalado el comando `discord-music-bot`.
 - `/nowplaying`: muestra los detalles de la pista actual.
 - `/leave`: limpia la cola y desconecta el bot.
 
+Al conectarse con `/play`, Arturo publica en el chat del canal de voz un panel
+con el tema actual, su duracion, quien lo pidio y el numero de temas en cola.
+Los botones permiten reproducir o pausar, detener y pasar a la siguiente cancion.
+Solo los usuarios que esten en el mismo canal de voz pueden usarlos.
+
 Si queda inactivo, el bot se desconecta solo después de cinco minutos. Este tiempo, el volumen, el limite de una playlist y la ruta a FFmpeg se pueden cambiar en `.env`; revisa `.env.example`.
 
 ## Calidad
