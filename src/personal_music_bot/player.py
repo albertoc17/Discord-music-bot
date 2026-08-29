@@ -35,6 +35,8 @@ class GuildPlayer:
         self.voice: discord.VoiceClient | None = None
         self.current: Track | None = None
         self._track_start_time: float | None = None
+        self._paused_at: float | None = None
+        self._paused_elapsed: int = 0
         self._queue: deque[Track] = deque()
         self._queue_ready = asyncio.Event()
         self._next = asyncio.Event()
@@ -53,6 +55,9 @@ class GuildPlayer:
         if not self._track_start_time or not self.current:
             return 0
         import time
+        if self._paused_at:
+            # Si está pausada, retorna el tiempo guardado
+            return self._paused_elapsed
         elapsed = int(time.time() - self._track_start_time)
         return min(elapsed, self.current.duration or 0)
 
@@ -72,7 +77,26 @@ class GuildPlayer:
         if not 0 <= volume <= 1:
             raise ValueError("El volumen debe estar entre 0 y 1")
         self.volume = volume
-        if self.voice and self.voice.source:
+        pause_track(self) -> None:
+        """Pausa la canción y guarda el tiempo transcurrido."""
+        import time
+        if self.voice and self.voice.is_playing():
+            self._paused_at = time.time()
+            self._paused_elapsed = self.get_elapsed_time()
+            self.voice.pause()
+
+    def resume_track(self) -> None:
+        """Reanuda la canción ajustando el tiempo."""
+        import time
+        if self.voice and self.voice.is_paused():
+            if self._paused_at and self._track_start_time:
+                # Ajusta el tiempo de inicio para compensar la pausa
+                pause_duration = int(time.time() - self._paused_at)
+                self._track_start_time += pause_duration
+            self._paused_at = None
+            self.voice.resume()
+
+    def if self.voice and self.voice.source:
             self.voice.source.volume = volume
 
     def enqueue(self, tracks: list[Track]) -> None:
@@ -164,7 +188,16 @@ class GuildPlayer:
                 self.voice.play(source, after=after_playback)
                 await self._notify_track_changed(track)
                 await self._notify(now_playing_message(track.title, track.requester_name))
-                await self._next.wait()
+                
+                # Esperar fin de canción, actualizando el panel cada 1 segundo
+                while not self._next.is_set() and not self._cancel_current:
+                    try:
+                        await asyncio.wait_for(self._next.wait(), timeout=1.0)
+                    except asyncio.TimeoutError:
+                        # Actualizar panel cada 1 segundo
+                        await self._notify_track_changed(track)
+                        continue
+                    break
             except (MediaError, discord.ClientException, OSError) as exc:
                 logger.warning("No se pudo reproducir %s: %s", track.webpage_url, exc)
                 await self._notify(playback_failed_message(track.title))
