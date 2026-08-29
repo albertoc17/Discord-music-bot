@@ -34,6 +34,7 @@ class GuildPlayer:
         self.audio_bitrate = audio_bitrate
         self.voice: discord.VoiceClient | None = None
         self.current: Track | None = None
+        self._track_start_time: float | None = None
         self._queue: deque[Track] = deque()
         self._queue_ready = asyncio.Event()
         self._next = asyncio.Event()
@@ -46,6 +47,14 @@ class GuildPlayer:
     @property
     def queue(self) -> tuple[Track, ...]:
         return tuple(self._queue)
+
+    def get_elapsed_time(self) -> int:
+        """Retorna el tiempo transcurrido en segundos."""
+        if not self._track_start_time or not self.current:
+            return 0
+        import time
+        elapsed = int(time.time() - self._track_start_time)
+        return min(elapsed, self.current.duration or 0)
 
     def set_voice(self, voice: discord.VoiceClient) -> None:
         self.voice = voice
@@ -142,6 +151,8 @@ class GuildPlayer:
                         logger.error("Error de reproduccion en guild %s: %s", self.guild_id, error)
                     event_loop.call_soon_threadsafe(self._next.set)
 
+                import time
+                self._track_start_time = time.time()
                 self.voice.play(source, after=after_playback)
                 await self._notify_track_changed(track)
                 await self._notify(now_playing_message(track.title, track.requester_name))
@@ -154,6 +165,7 @@ class GuildPlayer:
                 await self._notify(f"No pude reproducir **{track.title}**.")
             finally:
                 self.current = None
+                self._track_start_time = None
                 await self._notify_track_changed(None)
 
     async def _notify(self, message: str) -> None:

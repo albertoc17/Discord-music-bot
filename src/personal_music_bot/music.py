@@ -117,7 +117,22 @@ class Music(commands.Cog):
             color=color,
         )
         if track:
-            embed.add_field(name="Duración", value=format_duration(track.duration))
+            # Crear barra de progreso
+            elapsed = player.get_elapsed_time()
+            duration = track.duration or 0
+            
+            if duration > 0:
+                progress = elapsed / duration
+                bar_length = 20
+                filled = int(bar_length * progress)
+                bar = "█" * filled + "░" * (bar_length - filled)
+                
+                time_str = f"{format_duration(elapsed)} / {format_duration(duration)}"
+                progress_bar = f"`{bar}` {time_str}"
+            else:
+                progress_bar = "Duración desconocida"
+            
+            embed.add_field(name="Progreso", value=progress_bar, inline=False)
             embed.add_field(name="Pedido por", value=track.requester_name)
             if track.thumbnail:
                 embed.set_thumbnail(url=track.thumbnail)
