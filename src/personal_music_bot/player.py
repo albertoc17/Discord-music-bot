@@ -67,6 +67,14 @@ class GuildPlayer:
     def set_track_callback(self, callback: TrackCallback) -> None:
         self._track_callback = callback
 
+    def set_volume(self, volume: float) -> None:
+        """Cambia el volumen del reproductor."""
+        if not 0 <= volume <= 1:
+            raise ValueError("El volumen debe estar entre 0 y 1")
+        self.volume = volume
+        if self.voice and self.voice.source:
+            self.voice.source.volume = volume
+
     def enqueue(self, tracks: list[Track]) -> None:
         self._queue.extend(tracks)
         self._queue_ready.set()

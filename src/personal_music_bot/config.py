@@ -33,7 +33,7 @@ class Settings:
     discord_token: str
     guild_id: int | None = None
     command_prefix: str = "!"
-    default_volume: float = 0.5
+    default_volume: float = 0.7
     idle_timeout_seconds: int = 300
     max_playlist_items: int = 50
     ffmpeg_executable: str = "ffmpeg"
@@ -58,7 +58,7 @@ class Settings:
             discord_token=token,
             guild_id=guild_id,
             command_prefix=os.getenv("COMMAND_PREFIX", "!"),
-            default_volume=_volume("DEFAULT_VOLUME", 0.5),
+            default_volume=_volume("DEFAULT_VOLUME", 0.7),
             idle_timeout_seconds=_positive_int("IDLE_TIMEOUT_SECONDS", 300),
             max_playlist_items=_positive_int("MAX_PLAYLIST_ITEMS", 50),
             ffmpeg_executable=os.getenv("FFMPEG_EXECUTABLE", "ffmpeg"),

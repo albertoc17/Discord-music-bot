@@ -322,6 +322,25 @@ class Music(commands.Cog):
             f"Calidad de audio cambiada a **{bitrate}**. 🎵 Se aplicará en la próxima canción."
         )
 
+    @app_commands.command(name="volume", description="Cambia el volumen de reproducción")
+    @app_commands.describe(nivel="Volumen de 0 a 100")
+    async def volume(self, interaction: discord.Interaction, nivel: int) -> None:
+        if not 0 <= nivel <= 100:
+            raise MusicCommandError("El volumen debe estar entre 0 y 100.")
+        
+        player = self._player(interaction)
+        volume_float = nivel / 100
+        player.set_volume(volume_float)
+        
+        # Crear barra visual del volumen
+        bar_length = 20
+        filled = int(bar_length * (nivel / 100))
+        volume_bar = "🔊" + "█" * filled + "░" * (bar_length - filled) + "🔇"
+        
+        await interaction.response.send_message(
+            f"Volumen ajustado a **{nivel}%**\n`{volume_bar}`"
+        )
+
     @app_commands.command(name="ping", description="Muestra la latencia del bot")
     async def ping(self, interaction: discord.Interaction) -> None:
         latency = round(self.bot.latency * 1000)
@@ -347,6 +366,7 @@ class Music(commands.Cog):
                 ("/leave", "Desconecta el bot del canal de voz"),
             ]),
             ("⚙️ **Configuración**", [
+                ("/volume [nivel]", "Ajusta el volumen de 0 a 100"),
                 ("/quality [bitrate]", "Cambia la calidad de audio (64k, 96k, 128k, 192k, 256k)"),
                 ("/ping", "Muestra la latencia del bot"),
                 ("/help", "Muestra este mensaje de ayuda"),
