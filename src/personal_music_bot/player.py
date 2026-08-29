@@ -77,7 +77,10 @@ class GuildPlayer:
         if not 0 <= volume <= 1:
             raise ValueError("El volumen debe estar entre 0 y 1")
         self.volume = volume
-        pause_track(self) -> None:
+        if self.voice and self.voice.source:
+            self.voice.source.volume = volume
+
+    def pause_track(self) -> None:
         """Pausa la canción y guarda el tiempo transcurrido."""
         import time
         if self.voice and self.voice.is_playing():
@@ -95,9 +98,6 @@ class GuildPlayer:
                 self._track_start_time += pause_duration
             self._paused_at = None
             self.voice.resume()
-
-    def if self.voice and self.voice.source:
-            self.voice.source.volume = volume
 
     def enqueue(self, tracks: list[Track]) -> None:
         self._queue.extend(tracks)
@@ -193,7 +193,7 @@ class GuildPlayer:
                 while not self._next.is_set() and not self._cancel_current:
                     try:
                         await asyncio.wait_for(self._next.wait(), timeout=1.0)
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         # Actualizar panel cada 1 segundo
                         await self._notify_track_changed(track)
                         continue
