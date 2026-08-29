@@ -1,8 +1,9 @@
-# Atenea: asistente personal para Discord
+# Arturo: asistente personal para Discord
 
-**Atenea** es un asistente personal para un servidor privado de Discord. En esta
+**Arturo** es un asistente personal para un servidor privado de Discord. En esta
 primera etapa reproduce musica desde una busqueda, una URL o una playlist,
 mantiene una cola por servidor y se controla con comandos slash.
+Responde con distintas frases chilenas mientras busca, agrega y reproduce temas.
 
 ## Requisitos
 
@@ -14,7 +15,7 @@ mantiene una cola por servidor y se controla con comandos slash.
 ## Preparacion
 
 1. Abre el [Discord Developer Portal](https://discord.com/developers/applications),
-   pulsa **New Application**, escribe `Atenea` y crea la aplicacion.
+   pulsa **New Application**, escribe `Arturo` y crea la aplicacion.
 2. En **Bot**, pulsa **Reset Token**, copia el token y guardalo en `DISCORD_TOKEN`
    dentro de `.env`. El token funciona como una contrasena: no lo pegues en el
    chat ni lo subas a Git.
@@ -27,7 +28,7 @@ mantiene una cola por servidor y se controla con comandos slash.
 6. En Discord, activa **Ajustes de usuario > Avanzado > Modo desarrollador**.
    Haz clic derecho sobre tu servidor, selecciona **Copiar ID del servidor** y
    guardalo en `DISCORD_GUILD_ID` dentro de `.env`.
-4. Instala el proyecto en un entorno virtual:
+7. Instala el proyecto en un entorno virtual:
 
 ```powershell
 py -3.11 -m venv .venv
@@ -35,7 +36,7 @@ py -3.11 -m venv .venv
 python -m pip install -e ".[dev]"
 ```
 
-7. Si todavia no existe `.env`, copia el ejemplo. Pega el token y el ID del
+8. Si todavia no existe `.env`, copia el ejemplo. Pega el token y el ID del
    servidor; este ultimo hace que los comandos aparezcan inmediatamente durante
    el desarrollo.
 

@@ -7,7 +7,13 @@ from discord import app_commands
 from discord.ext import commands
 
 from personal_music_bot.config import Settings
-from personal_music_bot.media import MediaError, MediaResolver, format_duration
+from personal_music_bot.media import MediaError, MediaResolver, Track, format_duration
+from personal_music_bot.messages import (
+    not_found_message,
+    playlist_queued_message,
+    searching_message,
+    track_queued_message,
+)
 from personal_music_bot.player import GuildPlayer, PlayerManager
 
 logger = logging.getLogger(__name__)
@@ -82,6 +88,30 @@ class Music(commands.Cog):
         player.set_status_callback(send_status)
         return player
 
+    async def _search_and_enqueue(
+        self,
+        query: str,
+        requester: discord.Member | discord.User,
+        player: GuildPlayer,
+    ) -> list[Track]:
+        tracks = await self.resolver.search(
+            query,
+            requester_id=requester.id,
+            requester_name=requester.display_name,
+        )
+        player.enqueue(tracks)
+        return tracks
+
+    @staticmethod
+    def _queued_message(tracks: list[Track], playlist_limit: int) -> str:
+        if len(tracks) == 1:
+            track = tracks[0]
+            return track_queued_message(track.title, format_duration(track.duration))
+        return playlist_queued_message(
+            count=len(tracks),
+            limit=playlist_limit,
+        )
+
     def _player(self, interaction: discord.Interaction) -> GuildPlayer:
         if not interaction.guild_id:
             raise MusicCommandError("Este comando solo funciona dentro de un servidor.")
@@ -93,57 +123,48 @@ class Music(commands.Cog):
     @app_commands.command(name="play", description="Busca o agrega una URL a la cola")
     @app_commands.describe(busqueda="Nombre, URL de una pista o URL de una playlist")
     async def play(self, interaction: discord.Interaction, busqueda: str) -> None:
-        await interaction.response.defer(thinking=True)
+        await interaction.response.send_message(searching_message())
         try:
             player = await self._connect(interaction)
-            tracks = await self.resolver.search(
-                busqueda,
-                requester_id=interaction.user.id,
-                requester_name=interaction.user.display_name,
-            )
-            player.enqueue(tracks)
-        except (MusicCommandError, MediaError) as exc:
-            await interaction.followup.send(str(exc), ephemeral=True)
+            tracks = await self._search_and_enqueue(busqueda, interaction.user, player)
+        except MusicCommandError as exc:
+            await interaction.edit_original_response(content=str(exc))
+            return
+        except MediaError:
+            await interaction.edit_original_response(content=not_found_message())
             return
 
-        if len(tracks) == 1:
-            track = tracks[0]
-            await interaction.followup.send(
-                f"Agregada a la cola: **{track.title}** ({format_duration(track.duration)})"
-            )
-        else:
-            await interaction.followup.send(
-                f"Agregue **{len(tracks)} pistas** a la cola "
-                f"(limite: {self.resolver.max_playlist_items})."
-            )
+        await interaction.edit_original_response(
+            content=self._queued_message(tracks, self.resolver.max_playlist_items)
+        )
 
     @app_commands.command(name="pause", description="Pausa la musica")
     async def pause(self, interaction: discord.Interaction) -> None:
         player = self._player(interaction)
         if not player.voice or not player.voice.is_playing():
-            raise MusicCommandError("No hay musica sonando.")
+            raise MusicCommandError("No está sonando ni una weá ahora mismo.")
         player.voice.pause()
-        await interaction.response.send_message("Musica pausada.")
+        await interaction.response.send_message("Ya, dejé la música en pausa. ⏸️")
 
     @app_commands.command(name="resume", description="Continua la musica pausada")
     async def resume(self, interaction: discord.Interaction) -> None:
         player = self._player(interaction)
         if not player.voice or not player.voice.is_paused():
-            raise MusicCommandError("La musica no esta pausada.")
+            raise MusicCommandError("La música no está pausada, po.")
         player.voice.resume()
-        await interaction.response.send_message("Continuamos.")
+        await interaction.response.send_message("Ya po, seguimos con la música. ▶️")
 
     @app_commands.command(name="skip", description="Salta la pista actual")
     async def skip(self, interaction: discord.Interaction) -> None:
         if not self._player(interaction).skip():
-            raise MusicCommandError("No hay ninguna pista para saltar.")
-        await interaction.response.send_message("Pista saltada.")
+            raise MusicCommandError("No hay ningún tema pa saltar.")
+        await interaction.response.send_message("Chao nomás con ese tema. Vamos al siguiente.")
 
     @app_commands.command(name="stop", description="Detiene la musica y vacia la cola")
     async def stop(self, interaction: discord.Interaction) -> None:
         removed = self._player(interaction).stop()
         await interaction.response.send_message(
-            f"Reproduccion detenida. Quite {removed} pistas de la cola."
+            f"Corté la música y saqué {removed} temas de la cola. Quedó todo impeque."
         )
 
     @app_commands.command(name="queue", description="Muestra las proximas pistas")
@@ -151,7 +172,7 @@ class Music(commands.Cog):
         player = self._player(interaction)
         upcoming = player.queue
         if not player.current and not upcoming:
-            raise MusicCommandError("La cola esta vacia.")
+            raise MusicCommandError("La cola está más pelada que rodilla de cabro chico.")
 
         lines: list[str] = []
         if player.current:
@@ -170,7 +191,7 @@ class Music(commands.Cog):
     async def now_playing(self, interaction: discord.Interaction) -> None:
         track = self._player(interaction).current
         if not track:
-            raise MusicCommandError("No hay musica sonando.")
+            raise MusicCommandError("No está sonando ni una weá ahora mismo.")
         embed = discord.Embed(
             title="Ahora suena",
             description=f"[{track.title}]({track.webpage_url})",
@@ -189,7 +210,7 @@ class Music(commands.Cog):
         if player.voice and player.voice.is_connected():
             await player.voice.disconnect(force=True)
             player.voice = None
-        await interaction.response.send_message("Me desconecte del canal de voz.")
+        await interaction.response.send_message("Ya cabros, me fui del canal. Nos vimos. 👋")
 
     async def cog_app_command_error(
         self, interaction: discord.Interaction, error: app_commands.AppCommandError

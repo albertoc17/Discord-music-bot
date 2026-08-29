@@ -8,6 +8,7 @@ from collections.abc import Awaitable, Callable
 import discord
 
 from personal_music_bot.media import MediaError, MediaResolver, Track
+from personal_music_bot.messages import now_playing_message, playback_failed_message
 
 logger = logging.getLogger(__name__)
 
@@ -135,13 +136,11 @@ class GuildPlayer:
                     event_loop.call_soon_threadsafe(self._next.set)
 
                 self.voice.play(source, after=after_playback)
-                await self._notify(
-                    f"Ahora suena: **{track.title}** - pedido por {track.requester_name}"
-                )
+                await self._notify(now_playing_message(track.title, track.requester_name))
                 await self._next.wait()
             except (MediaError, discord.ClientException, OSError) as exc:
                 logger.warning("No se pudo reproducir %s: %s", track.webpage_url, exc)
-                await self._notify(str(exc))
+                await self._notify(playback_failed_message(track.title))
             except Exception:
                 logger.exception("Fallo inesperado al reproducir %s", track.webpage_url)
                 await self._notify(f"No pude reproducir **{track.title}**.")
