@@ -24,12 +24,14 @@ class GuildPlayer:
         ffmpeg_executable: str,
         volume: float,
         idle_timeout: int,
+        audio_bitrate: str = "128k",
     ) -> None:
         self.guild_id = guild_id
         self.resolver = resolver
         self.ffmpeg_executable = ffmpeg_executable
         self.volume = volume
         self.idle_timeout = idle_timeout
+        self.audio_bitrate = audio_bitrate
         self.voice: discord.VoiceClient | None = None
         self.current: Track | None = None
         self._queue: deque[Track] = deque()
@@ -122,7 +124,7 @@ class GuildPlayer:
                         stream.url,
                         executable=self.ffmpeg_executable,
                         before_options="-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
-                        options="-vn",
+                        options=f"-vn -b:a {self.audio_bitrate}",
                     ),
                     volume=self.volume,
                 )
@@ -182,11 +184,13 @@ class PlayerManager:
         ffmpeg_executable: str,
         volume: float,
         idle_timeout: int,
+        audio_bitrate: str = "128k",
     ) -> None:
         self.resolver = resolver
         self.ffmpeg_executable = ffmpeg_executable
         self.volume = volume
         self.idle_timeout = idle_timeout
+        self.audio_bitrate = audio_bitrate
         self._players: dict[int, GuildPlayer] = {}
 
     def get(self, guild_id: int) -> GuildPlayer:
@@ -197,6 +201,7 @@ class PlayerManager:
                 ffmpeg_executable=self.ffmpeg_executable,
                 volume=self.volume,
                 idle_timeout=self.idle_timeout,
+                audio_bitrate=self.audio_bitrate,
             )
         return self._players[guild_id]
 

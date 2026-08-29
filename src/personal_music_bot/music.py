@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 class Music(commands.Cog):
     def __init__(self, bot: commands.Bot, settings: Settings) -> None:
         self.bot = bot
+        self.settings = settings
         self._control_panels: dict[int, discord.Message] = {}
         self.resolver = MediaResolver(settings.max_playlist_items)
         self.players = PlayerManager(
@@ -30,6 +31,7 @@ class Music(commands.Cog):
             ffmpeg_executable=settings.ffmpeg_executable,
             volume=settings.default_volume,
             idle_timeout=settings.idle_timeout_seconds,
+            audio_bitrate=settings.audio_bitrate,
         )
         self._persistent_controls = MusicControls(self)
         self.bot.add_view(self._persistent_controls)
@@ -96,7 +98,7 @@ class Music(commands.Cog):
             await self._update_control_panel(interaction.guild_id)
 
         player.set_track_callback(update_panel)
-        await self._ensure_control_panel(interaction.guild_id, voice_channel, player)
+        await self._ensure_control_panel(interaction.guild_id, interaction.channel, player)
         return player
 
     @staticmethod
@@ -126,12 +128,12 @@ class Music(commands.Cog):
     async def _ensure_control_panel(
         self,
         guild_id: int,
-        voice_channel: discord.VoiceChannel | discord.StageChannel,
+        text_channel: discord.abc.Messageable,
         player: GuildPlayer,
     ) -> None:
         embed = self._control_panel_embed(player)
         existing = self._control_panels.get(guild_id)
-        if existing and existing.channel.id == voice_channel.id:
+        if existing and existing.channel.id == text_channel.id:
             try:
                 await existing.edit(embed=embed, view=MusicControls(self))
                 return
@@ -142,7 +144,7 @@ class Music(commands.Cog):
                 return
 
         try:
-            panel = await voice_channel.send(embed=embed, view=MusicControls(self))
+            panel = await text_channel.send(embed=embed, view=MusicControls(self))
         except (discord.Forbidden, discord.HTTPException) as exc:
             logger.warning("No se pudo publicar el panel en guild %s: %s", guild_id, exc)
             return
@@ -285,6 +287,63 @@ class Music(commands.Cog):
             player.voice = None
         await self._update_control_panel(player.guild_id)
         await interaction.response.send_message(leaving_message())
+
+    @app_commands.command(name="quality", description="Cambia la calidad de audio")
+    @app_commands.describe(bitrate="Selecciona la calidad de audio")
+    @app_commands.choices(bitrate=[
+        app_commands.Choice(name="64 kbps - Baja", value="64k"),
+        app_commands.Choice(name="96 kbps - Media", value="96k"),
+        app_commands.Choice(name="128 kbps - Estándar (default)", value="128k"),
+        app_commands.Choice(name="192 kbps - Alta", value="192k"),
+        app_commands.Choice(name="256 kbps - Máxima (Nitro)", value="256k"),
+    ])
+    async def quality(self, interaction: discord.Interaction, bitrate: str) -> None:
+        # Actualizar la configuración
+        object.__setattr__(self.settings, "audio_bitrate", bitrate)
+        # Actualizar el PlayerManager
+        self.players.audio_bitrate = bitrate
+        
+        await interaction.response.send_message(
+            f"Calidad de audio cambiada a **{bitrate}**. 🎵 Se aplicará en la próxima canción."
+        )
+
+    @app_commands.command(name="ping", description="Muestra la latencia del bot")
+    async def ping(self, interaction: discord.Interaction) -> None:
+        latency = round(self.bot.latency * 1000)
+        await interaction.response.send_message(f"Pong! 🏓 Latencia: **{latency}ms**")
+
+    @app_commands.command(name="help", description="Muestra la lista de comandos disponibles")
+    async def help_command(self, interaction: discord.Interaction) -> None:
+        embed = discord.Embed(
+            title="🎛️ Comandos disponibles - King Arturo",
+            description="Lista de todos los comandos del bot de música",
+            color=discord.Color.blurple(),
+        )
+        
+        commands_info = [
+            ("🎵 **Música**", [
+                ("/play [búsqueda]", "Busca una canción o agrega una URL a la cola"),
+                ("/pause", "Pausa la música actual"),
+                ("/resume", "Reanuda la música pausada"),
+                ("/skip", "Salta a la siguiente canción"),
+                ("/stop", "Detiene la música y vacía la cola"),
+                ("/queue", "Muestra las próximas canciones en la cola"),
+                ("/nowplaying", "Muestra la canción que está sonando"),
+                ("/leave", "Desconecta el bot del canal de voz"),
+            ]),
+            ("⚙️ **Configuración**", [
+                ("/quality [bitrate]", "Cambia la calidad de audio (64k, 96k, 128k, 192k, 256k)"),
+                ("/ping", "Muestra la latencia del bot"),
+                ("/help", "Muestra este mensaje de ayuda"),
+            ]),
+        ]
+        
+        for category, cmds in commands_info:
+            commands_text = "\n".join(f"{cmd} - {desc}" for cmd, desc in cmds)
+            embed.add_field(name=category, value=commands_text, inline=False)
+        
+        embed.set_footer(text="Usa los botones del panel de control para navegar la música")
+        await interaction.response.send_message(embed=embed)
 
     async def cog_app_command_error(
         self, interaction: discord.Interaction, error: app_commands.AppCommandError

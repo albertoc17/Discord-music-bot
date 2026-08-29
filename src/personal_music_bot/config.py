@@ -37,6 +37,7 @@ class Settings:
     idle_timeout_seconds: int = 300
     max_playlist_items: int = 50
     ffmpeg_executable: str = "ffmpeg"
+    audio_bitrate: str = "128k"
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -61,5 +62,6 @@ class Settings:
             idle_timeout_seconds=_positive_int("IDLE_TIMEOUT_SECONDS", 300),
             max_playlist_items=_positive_int("MAX_PLAYLIST_ITEMS", 50),
             ffmpeg_executable=os.getenv("FFMPEG_EXECUTABLE", "ffmpeg"),
+            audio_bitrate=os.getenv("AUDIO_BITRATE", "128k"),
         )
 
