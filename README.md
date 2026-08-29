@@ -56,20 +56,34 @@ Tambien queda instalado el comando `discord-music-bot`.
 
 ## Comandos
 
-- `/play busqueda`: reproduce o agrega una busqueda, URL o playlist.
-- `/pause` y `/resume`: pausa y continua.
-- `/skip`: salta la pista actual.
-- `/stop`: detiene y limpia la cola.
-- `/queue`: muestra la pista actual y hasta 10 pendientes.
-- `/nowplaying`: muestra los detalles de la pista actual.
-- `/leave`: limpia la cola y desconecta el bot.
+### Música
+- `/play [búsqueda]`: busca o agrega una canción, URL o playlist a la cola.
+- `/pause`: pausa la música actual.
+- `/resume`: continúa la música pausada.
+- `/skip`: salta a la siguiente canción.
+- `/stop`: detiene la música y vacía la cola.
+- `/queue`: muestra la canción actual y hasta 10 próximas.
+- `/nowplaying`: muestra los detalles de la canción actual.
+- `/leave`: desconecta el bot del canal de voz.
 
-Al conectarse con `/play`, Arturo publica en el chat del canal de voz un panel
-con el tema actual, su duracion, quien lo pidio y el numero de temas en cola.
-Los botones permiten reproducir o pausar, detener y pasar a la siguiente cancion.
-Solo los usuarios que esten en el mismo canal de voz pueden usarlos.
+### Configuración
+- `/volume [nivel]`: ajusta el volumen de 0 a 100 (defecto: 70%).
+- `/quality [bitrate]`: cambia la calidad de audio (64k, 96k, 128k, 192k, 256k).
+- `/ping`: muestra la latencia del bot.
+- `/help`: lista todos los comandos disponibles.
 
-Si queda inactivo, el bot se desconecta solo después de cinco minutos. Este tiempo, el volumen, el limite de una playlist y la ruta a FFmpeg se pueden cambiar en `.env`; revisa `.env.example`.
+Al conectarse con `/play`, Arturo publica un panel con:
+- Título y enlace de la canción actual
+- **Barra de progreso** que se actualiza en tiempo real (se muestra cada 1 segundo)
+- Duración actual / total
+- Quién pidió la canción
+- Número de canciones en cola
+- Miniatura de la portada
+
+Los botones permiten reproducir/pausar (⏯️), detener (⏹️) y pasar a la siguiente canción (⏭️).
+Solo los usuarios en el mismo canal de voz pueden usarlos.
+
+Si queda inactivo, el bot se desconecta solo después de cinco minutos. Este tiempo, el volumen, el bitrate de audio, el límite de una playlist y la ruta a FFmpeg se pueden cambiar en `.env`; revisa `.env.example`.
 
 ## Calidad
 

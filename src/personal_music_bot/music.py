@@ -148,22 +148,21 @@ class Music(commands.Cog):
     ) -> None:
         embed = self._control_panel_embed(player)
         existing = self._control_panels.get(guild_id)
-        if existing and existing.channel.id == text_channel.id:
+        
+        # Eliminar el panel anterior si existe
+        if existing:
             try:
-                await existing.edit(embed=embed, view=MusicControls(self))
-                return
-            except discord.NotFound:
-                self._control_panels.pop(guild_id, None)
-            except discord.HTTPException as exc:
-                logger.warning("No se pudo refrescar el panel en guild %s: %s", guild_id, exc)
-                return
-
+                await existing.delete()
+            except (discord.NotFound, discord.HTTPException):
+                pass
+            self._control_panels.pop(guild_id, None)
+        
+        # Crear un panel nuevo al fondo del chat
         try:
             panel = await text_channel.send(embed=embed, view=MusicControls(self))
+            self._control_panels[guild_id] = panel
         except (discord.Forbidden, discord.HTTPException) as exc:
             logger.warning("No se pudo publicar el panel en guild %s: %s", guild_id, exc)
-            return
-        self._control_panels[guild_id] = panel
 
     async def _update_control_panel(self, guild_id: int) -> None:
         panel = self._control_panels.get(guild_id)
@@ -171,7 +170,15 @@ class Music(commands.Cog):
         if not panel or not player:
             return
         try:
-            await panel.edit(embed=self._control_panel_embed(player), view=MusicControls(self))
+            # Eliminar el panel anterior
+            await panel.delete()
+            # Crear uno nuevo al fondo
+            if panel.channel:
+                new_panel = await panel.channel.send(
+                    embed=self._control_panel_embed(player), 
+                    view=MusicControls(self)
+                )
+                self._control_panels[guild_id] = new_panel
         except discord.NotFound:
             self._control_panels.pop(guild_id, None)
         except discord.HTTPException as exc:
