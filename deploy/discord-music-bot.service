@@ -1,0 +1,15 @@
+[Unit]
+Description=Discord Music Bot
+After=network.target
+
+[Service]
+WorkingDirectory=/home/your_user/Repos/Discord-music-bot
+User=your_user
+Group=your_user
+Environment=PATH=/home/your_user/Repos/Discord-music-bot/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/home/your_user/Repos/Discord-music-bot/.venv/bin/python -m personal_music_bot
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
