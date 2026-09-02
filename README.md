@@ -72,6 +72,7 @@ Tambien queda instalado el comando `discord-music-bot`.
 - `/quality [bitrate]`: cambia la calidad de audio (64k, 96k, 128k, 192k, 256k).
 - `/ping`: muestra la latencia del bot.
 - `/status`: muestra la version desplegada y el consumo de CPU y memoria del bot.
+- `/restart`: reinicia el proceso del bot; solo pueden usarlo los administradores.
 - `/help`: lista todos los comandos disponibles.
 
 Al conectarse con `/play`, Arturo publica un panel que se mantiene al final del chat con:

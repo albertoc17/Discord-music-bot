@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
+import signal
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -11,6 +13,10 @@ from discord import app_commands
 from discord.ext import commands
 
 from personal_music_bot import __version__
+
+logger = logging.getLogger(__name__)
+
+RESTART_DELAY_SECONDS = 1.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,6 +62,11 @@ def status_embed(version: str, metrics: ProcessMetrics) -> discord.Embed:
     return embed
 
 
+async def terminate_for_restart() -> None:
+    await asyncio.sleep(RESTART_DELAY_SECONDS)
+    os.kill(os.getpid(), signal.SIGTERM)
+
+
 class SystemStatus(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
@@ -77,3 +88,45 @@ class SystemStatus(commands.Cog):
         await interaction.response.send_message(
             embed=status_embed(deployment_version(), metrics)
         )
+
+    @app_commands.command(
+        name="restart",
+        description="Reinicia el bot",
+    )
+    @app_commands.guild_only()
+    @app_commands.default_permissions(administrator=True)
+    @app_commands.checks.has_permissions(administrator=True)
+    async def restart(self, interaction: discord.Interaction) -> None:
+        logger.warning(
+            "Reinicio solicitado por %s (ID: %s) en el servidor %s",
+            interaction.user,
+            interaction.user.id,
+            interaction.guild_id,
+        )
+        await interaction.response.send_message(
+            "Reiniciando a Arturo... vuelvo al toque. 🔄",
+            ephemeral=True,
+        )
+        await terminate_for_restart()
+
+    async def cog_app_command_error(
+        self,
+        interaction: discord.Interaction,
+        error: app_commands.AppCommandError,
+    ) -> None:
+        original = getattr(error, "original", error)
+        if isinstance(original, app_commands.MissingPermissions):
+            message = "Solo un administrador puede reiniciar el bot."
+        elif isinstance(original, app_commands.NoPrivateMessage):
+            message = "Este comando solo funciona dentro de un servidor."
+        else:
+            message = "Ocurrio un error inesperado al ejecutar el comando."
+            logger.error(
+                "Fallo al ejecutar un comando de sistema",
+                exc_info=(type(original), original, original.__traceback__),
+            )
+
+        if interaction.response.is_done():
+            await interaction.followup.send(message, ephemeral=True)
+        else:
+            await interaction.response.send_message(message, ephemeral=True)

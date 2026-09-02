@@ -65,6 +65,26 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev]"
 
+      - name: Validate media runtime
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          if ! command -v ffmpeg > /dev/null; then
+            echo "::error::FFmpeg is not installed or is not available in PATH"
+            exit 1
+          fi
+
+          ffmpeg -version
+
+          if command -v deno > /dev/null; then
+            deno --version
+          elif command -v node > /dev/null; then
+            node --version
+          else
+            echo "::warning::No JavaScript runtime found; some YouTube streams may fail"
+          fi
+
       - name: Restart bot service
         shell: bash
         run: |

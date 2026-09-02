@@ -24,6 +24,7 @@ RandomEventCallback = Callable[[], Awaitable[None]]
 RANDOM_EVENT_CHANCE = 0.05
 RANDOM_EVENT_MIN_DELAY = 20
 RANDOM_EVENT_MAX_DELAY = 120
+STREAM_RESOLUTION_TIMEOUT_SECONDS = 45
 
 
 class GuildPlayer:
@@ -177,7 +178,10 @@ class GuildPlayer:
             random_event_task: asyncio.Task[None] | None = None
 
             try:
-                stream = await self.resolver.stream_for(track)
+                stream = await asyncio.wait_for(
+                    self.resolver.stream_for(track),
+                    timeout=STREAM_RESOLUTION_TIMEOUT_SECONDS,
+                )
                 source = discord.PCMVolumeTransformer(
                     discord.FFmpegPCMAudio(
                         stream.url,
@@ -221,7 +225,7 @@ class GuildPlayer:
                         await self._notify_track_changed(track)
                         continue
                     break
-            except (MediaError, discord.ClientException, OSError) as exc:
+            except (MediaError, discord.ClientException, OSError, TimeoutError) as exc:
                 logger.warning("No se pudo reproducir %s: %s", track.webpage_url, exc)
                 await self._notify(playback_failed_message(track.title))
             except Exception:

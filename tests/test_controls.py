@@ -67,6 +67,24 @@ async def test_control_panel_is_republished_after_new_messages() -> None:
 
 
 @pytest.mark.asyncio
+async def test_connect_voice_channel_replaces_a_stale_connection() -> None:
+    stale_voice = MagicMock()
+    stale_voice.is_connected.return_value = False
+    stale_voice.disconnect = AsyncMock()
+    new_voice = MagicMock()
+    voice_channel = MagicMock(spec=discord.VoiceChannel)
+    voice_channel.connect = AsyncMock(return_value=new_voice)
+    guild = MagicMock(spec=discord.Guild)
+    guild.voice_client = stale_voice
+
+    result = await Music._connect_voice_channel(guild, voice_channel)
+
+    stale_voice.disconnect.assert_awaited_once_with(force=True)
+    voice_channel.connect.assert_awaited_once_with()
+    assert result is new_voice
+
+
+@pytest.mark.asyncio
 async def test_voice_channel_status_tracks_current_song_without_repeating_edits() -> None:
     track = Track(
         title="Tren al sur",
@@ -82,7 +100,13 @@ async def test_voice_channel_status_tracks_current_song_without_repeating_edits(
         GuildPlayer,
         SimpleNamespace(guild_id=1, voice=SimpleNamespace(channel=channel)),
     )
-    music = cast(Music, SimpleNamespace(_voice_channel_statuses={}))
+    music = cast(
+        Music,
+        SimpleNamespace(
+            _voice_channel_statuses={},
+            _voice_channel_status_failures={},
+        ),
+    )
 
     await Music._update_voice_channel_status(music, player, track)
     await Music._update_voice_channel_status(music, player, track)
@@ -95,3 +119,45 @@ async def test_voice_channel_status_tracks_current_song_without_repeating_edits(
     await Music._update_voice_channel_status(music, player, None)
     assert channel.edit.await_count == 2
     assert channel.edit.await_args.kwargs["status"] is None
+
+
+@pytest.mark.asyncio
+async def test_voice_channel_status_retries_after_a_transient_error() -> None:
+    track = Track(
+        title="Tren al sur",
+        webpage_url="https://example.com/track",
+        duration=245,
+        requester_id=1,
+        requester_name="Alberto",
+    )
+    channel = MagicMock(spec=discord.VoiceChannel)
+    channel.id = 10
+    channel.guild.me = MagicMock()
+    channel.permissions_for.return_value.set_voice_channel_status = True
+    response = MagicMock(status=500, reason="Server Error")
+    channel.edit = AsyncMock(
+        side_effect=discord.HTTPException(response, "temporary failure")
+    )
+    player = cast(
+        GuildPlayer,
+        SimpleNamespace(guild_id=1, voice=SimpleNamespace(channel=channel)),
+    )
+    music = cast(
+        Music,
+        SimpleNamespace(
+            _voice_channel_statuses={},
+            _voice_channel_status_failures={},
+        ),
+    )
+
+    await Music._update_voice_channel_status(music, player, track)
+
+    assert music._voice_channel_statuses == {}
+    assert music._voice_channel_status_failures[1][0] == (10, "🎵 Tren al sur")
+
+    music._voice_channel_status_failures[1] = ((10, "🎵 Tren al sur"), 0)
+    channel.edit.side_effect = None
+    await Music._update_voice_channel_status(music, player, track)
+
+    assert music._voice_channel_statuses[1] == (10, "🎵 Tren al sur")
+    assert music._voice_channel_status_failures == {}

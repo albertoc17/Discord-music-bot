@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import random
 from contextlib import suppress
+from time import monotonic
 
 import discord
 from discord import app_commands
@@ -22,6 +23,8 @@ from personal_music_bot.player import GuildPlayer, PlayerManager
 
 logger = logging.getLogger(__name__)
 
+VOICE_CHANNEL_STATUS_RETRY_SECONDS = 10.0
+
 
 class Music(commands.Cog):
     def __init__(self, bot: commands.Bot, settings: Settings) -> None:
@@ -29,6 +32,10 @@ class Music(commands.Cog):
         self.settings = settings
         self._control_panels: dict[int, discord.Message] = {}
         self._voice_channel_statuses: dict[int, tuple[int, str | None]] = {}
+        self._voice_channel_status_failures: dict[
+            int,
+            tuple[tuple[int, str | None], float],
+        ] = {}
         self.resolver = MediaResolver(settings.max_playlist_items)
         self.players = PlayerManager(
             resolver=self.resolver,
@@ -45,6 +52,26 @@ class Music(commands.Cog):
         for player in self.players.active_players:
             await self._update_voice_channel_status(player, None)
         await self.players.close_all()
+
+    @staticmethod
+    async def _connect_voice_channel(
+        guild: discord.Guild,
+        voice_channel: discord.VoiceChannel | discord.StageChannel,
+    ) -> discord.VoiceClient:
+        voice = guild.voice_client
+
+        # Discord puede mostrar al bot dentro del canal aunque la conexion local
+        # haya quedado obsoleta despues de un reinicio o corte de red.
+        if voice and not voice.is_connected():
+            await voice.disconnect(force=True)
+            voice = None
+
+        if voice and voice.channel != voice_channel:
+            await voice.move_to(voice_channel)
+        elif not voice:
+            voice = await voice_channel.connect()
+
+        return voice
 
     async def _connect(self, interaction: discord.Interaction) -> GuildPlayer:
         if not interaction.guild or not interaction.guild_id:
@@ -84,11 +111,7 @@ class Music(commands.Cog):
         if not isinstance(voice_channel, (discord.VoiceChannel, discord.StageChannel)):
             raise MusicCommandError("Primero entra a un canal de voz.")
 
-        voice = interaction.guild.voice_client
-        if voice and voice.channel != voice_channel:
-            await voice.move_to(voice_channel)
-        elif not voice:
-            voice = await voice_channel.connect()
+        voice = await self._connect_voice_channel(interaction.guild, voice_channel)
 
         player = self.players.get(interaction.guild_id)
         player.set_voice(voice)
@@ -193,19 +216,35 @@ class Music(commands.Cog):
         if self._voice_channel_statuses.get(player.guild_id) == status_key:
             return
 
-        # Guardarlo antes de llamar a Discord evita reintentos cada segundo si falta permiso.
-        self._voice_channel_statuses[player.guild_id] = status_key
+        last_failure = self._voice_channel_status_failures.get(player.guild_id)
+        if last_failure and last_failure[0] == status_key and monotonic() < last_failure[1]:
+            return
+
         try:
             await channel.edit(
                 status=status,
                 reason="Actualizar la canción que está reproduciendo Arturo",
             )
         except (discord.Forbidden, discord.HTTPException) as exc:
+            retry_at = monotonic() + VOICE_CHANNEL_STATUS_RETRY_SECONDS
+            self._voice_channel_status_failures[player.guild_id] = (status_key, retry_at)
+
+            member = channel.guild.me
+            has_permission = (
+                channel.permissions_for(member).set_voice_channel_status if member else None
+            )
             logger.warning(
-                "No se pudo actualizar el estado del canal de voz %s: %s",
+                "No se pudo actualizar el estado del canal de voz %s "
+                "(permiso efectivo: %s); se reintentara en %.0f segundos: %s",
                 channel.id,
+                has_permission,
+                VOICE_CHANNEL_STATUS_RETRY_SECONDS,
                 exc,
             )
+            return
+
+        self._voice_channel_statuses[player.guild_id] = status_key
+        self._voice_channel_status_failures.pop(player.guild_id, None)
 
     async def _ensure_control_panel(
         self,
@@ -437,6 +476,7 @@ class Music(commands.Cog):
                 ("/quality [bitrate]", "Cambia la calidad de audio (64k, 96k, 128k, 192k, 256k)"),
                 ("/ping", "Muestra la latencia del bot"),
                 ("/status", "Muestra la version y el consumo de recursos"),
+                ("/restart", "Reinicia el bot (solo administradores)"),
                 ("/help", "Muestra este mensaje de ayuda"),
             ]),
         ]
