@@ -65,6 +65,7 @@ Tambien queda instalado el comando `discord-music-bot`.
 - `/stop`: detiene la música y vacía la cola.
 - `/queue`: muestra la canción actual y hasta 10 próximas.
 - `/nowplaying`: muestra los detalles de la canción actual.
+- `/stats`: muestra las canciones más escuchadas y quiénes más pidieron durante el mes.
 - `/leave`: desconecta el bot del canal de voz.
 
 ### Configuración
@@ -90,6 +91,11 @@ Mientras reproduce, el estado del canal de voz muestra el nombre de la canción 
 queda inactivo, el bot se despide y se desconecta solo después de cinco minutos. Este
 tiempo, el volumen, el bitrate de audio, el límite de una playlist y la ruta a FFmpeg se
 pueden cambiar en `.env`; revisa `.env.example`.
+
+Al salir del canal, Arturo elimina su panel para que la despedida sea su último mensaje.
+Las estadísticas se guardan en SQLite al comenzar cada reproducción y sobreviven a los
+reinicios. La base se crea automáticamente en `data/arturo_stats.sqlite3` cuando el bot
+arranca. Si hace falta cambiarla, se puede definir `STATS_DATABASE_PATH` en el `.env` real.
 
 En cada canción hay un 5% de probabilidad de que Arturo putee, en un momento aleatorio,
 a una persona del canal de voz. El nombre se muestra como texto y no genera una mención.

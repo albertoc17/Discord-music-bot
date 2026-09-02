@@ -38,6 +38,7 @@ class Settings:
     max_playlist_items: int = 50
     ffmpeg_executable: str = "ffmpeg"
     audio_bitrate: str = "128k"
+    stats_database_path: str = "data/arturo_stats.sqlite3"
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -63,5 +64,8 @@ class Settings:
             max_playlist_items=_positive_int("MAX_PLAYLIST_ITEMS", 50),
             ffmpeg_executable=os.getenv("FFMPEG_EXECUTABLE", "ffmpeg"),
             audio_bitrate=os.getenv("AUDIO_BITRATE", "128k"),
+            stats_database_path=os.getenv(
+                "STATS_DATABASE_PATH", "data/arturo_stats.sqlite3"
+            ),
         )
 

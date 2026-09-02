@@ -20,10 +20,26 @@ from personal_music_bot.messages import (
     track_queued_message,
 )
 from personal_music_bot.player import GuildPlayer, PlayerManager
+from personal_music_bot.statistics import StatisticsStore
 
 logger = logging.getLogger(__name__)
 
 VOICE_CHANNEL_STATUS_RETRY_SECONDS = 10.0
+MONTH_NAMES = (
+    "",
+    "enero",
+    "febrero",
+    "marzo",
+    "abril",
+    "mayo",
+    "junio",
+    "julio",
+    "agosto",
+    "septiembre",
+    "octubre",
+    "noviembre",
+    "diciembre",
+)
 
 
 class Music(commands.Cog):
@@ -37,6 +53,11 @@ class Music(commands.Cog):
             tuple[tuple[int, str | None], float],
         ] = {}
         self.resolver = MediaResolver(settings.max_playlist_items)
+        self.statistics = StatisticsStore(settings.stats_database_path)
+        logger.info(
+            "Las estadisticas de Arturo se guardan en %s",
+            self.statistics.database_path.resolve(),
+        )
         self.players = PlayerManager(
             resolver=self.resolver,
             ffmpeg_executable=settings.ffmpeg_executable,
@@ -51,6 +72,7 @@ class Music(commands.Cog):
         self._persistent_controls.stop()
         for player in self.players.active_players:
             await self._update_voice_channel_status(player, None)
+            await self._delete_control_panel(player.guild_id)
         await self.players.close_all()
 
     @staticmethod
@@ -150,6 +172,19 @@ class Music(commands.Cog):
                 )
 
         player.set_random_event_callback(send_random_insult)
+
+        async def record_play(track: Track) -> None:
+            await self.statistics.record_play(player.guild_id, track)
+
+        player.set_track_started_callback(record_play)
+
+        async def handle_idle_disconnect() -> None:
+            await self._delete_control_panel(player.guild_id)
+            channel = interaction.channel
+            if channel and hasattr(channel, "send"):
+                await channel.send(leaving_message())
+
+        player.set_disconnect_callback(handle_idle_disconnect)
 
         async def update_panel(track: Track | None) -> None:
             await self._update_voice_channel_status(player, track)
@@ -280,6 +315,17 @@ class Music(commands.Cog):
         except discord.HTTPException as exc:
             logger.warning("No se pudo actualizar el panel en guild %s: %s", guild_id, exc)
 
+    async def _delete_control_panel(self, guild_id: int) -> None:
+        panel = self._control_panels.pop(guild_id, None)
+        if not panel:
+            return
+        try:
+            await panel.delete()
+        except discord.NotFound:
+            return
+        except discord.HTTPException as exc:
+            logger.warning("No se pudo eliminar el panel en guild %s: %s", guild_id, exc)
+
     async def _search_and_enqueue(
         self,
         query: str,
@@ -399,15 +445,52 @@ class Music(commands.Cog):
     @app_commands.command(name="leave", description="Desconecta el bot del canal de voz")
     async def leave(self, interaction: discord.Interaction) -> None:
         player = self._player(interaction)
+        await interaction.response.defer()
         player.stop()
         if player.voice and player.voice.is_connected():
             await self._update_voice_channel_status(player, None)
             await player.voice.disconnect(force=True)
             player.voice = None
-        await self._update_control_panel(player.guild_id)
-        await interaction.response.send_message(leaving_message())
-        if interaction.channel:
-            await self._ensure_control_panel(player.guild_id, interaction.channel, player)
+        await self._delete_control_panel(player.guild_id)
+        await interaction.edit_original_response(content=leaving_message())
+
+    @app_commands.command(name="stats", description="Muestra las estadísticas musicales del mes")
+    async def stats(self, interaction: discord.Interaction) -> None:
+        if not interaction.guild_id:
+            raise MusicCommandError("Este comando solo funciona dentro de un servidor.")
+
+        monthly = await self.statistics.monthly(interaction.guild_id)
+        month = f"{MONTH_NAMES[monthly.month]} de {monthly.year}"
+        embed = discord.Embed(
+            title="📊 Las cuentas de Arturo",
+            description=(
+                f"Resumen de **{month}** · "
+                f"**{monthly.total_plays}** canciones reproducidas"
+            ),
+            color=discord.Color.gold(),
+        )
+
+        if monthly.tracks:
+            tracks = "\n".join(
+                f"**{index}.** {discord.utils.escape_markdown(item.title)[:80]} "
+                f"— {item.plays} reproducciones"
+                for index, item in enumerate(monthly.tracks, start=1)
+            )
+        else:
+            tracks = "Todavía no hay reproducciones registradas este mes."
+        embed.add_field(name="🎵 Canciones más escuchadas", value=tracks, inline=False)
+
+        if monthly.requesters:
+            requesters = "\n".join(
+                f"**{index}.** {discord.utils.escape_markdown(item.requester_name)[:80]} "
+                f"— {item.plays} canciones"
+                for index, item in enumerate(monthly.requesters, start=1)
+            )
+        else:
+            requesters = "Todavía nadie ha pedido canciones este mes."
+        embed.add_field(name="👑 Quienes más pidieron", value=requesters, inline=False)
+        embed.set_footer(text="Se cuenta cada canción cuando empieza a sonar")
+        await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="quality", description="Cambia la calidad de audio")
     @app_commands.describe(bitrate="Selecciona la calidad de audio")
@@ -469,6 +552,7 @@ class Music(commands.Cog):
                 ("/stop", "Detiene la música y vacía la cola"),
                 ("/queue", "Muestra las próximas canciones en la cola"),
                 ("/nowplaying", "Muestra la canción que está sonando"),
+                ("/stats", "Muestra las estadísticas musicales del mes"),
                 ("/leave", "Desconecta el bot del canal de voz"),
             ]),
             ("⚙️ **Configuración**", [

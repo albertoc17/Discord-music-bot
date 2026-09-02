@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 StatusCallback = Callable[[str], Awaitable[None]]
 TrackCallback = Callable[[Track | None], Awaitable[None]]
 RandomEventCallback = Callable[[], Awaitable[None]]
+TrackStartedCallback = Callable[[Track], Awaitable[None]]
+DisconnectCallback = Callable[[], Awaitable[None]]
 
 RANDOM_EVENT_CHANCE = 0.05
 RANDOM_EVENT_MIN_DELAY = 20
@@ -54,6 +56,8 @@ class GuildPlayer:
         self._status_callback: StatusCallback | None = None
         self._track_callback: TrackCallback | None = None
         self._random_event_callback: RandomEventCallback | None = None
+        self._track_started_callback: TrackStartedCallback | None = None
+        self._disconnect_callback: DisconnectCallback | None = None
         self._cancel_current = False
         self._closed = False
         self._task = asyncio.create_task(self._player_loop(), name=f"player-{guild_id}")
@@ -86,6 +90,12 @@ class GuildPlayer:
 
     def set_random_event_callback(self, callback: RandomEventCallback) -> None:
         self._random_event_callback = callback
+
+    def set_track_started_callback(self, callback: TrackStartedCallback) -> None:
+        self._track_started_callback = callback
+
+    def set_disconnect_callback(self, callback: DisconnectCallback) -> None:
+        self._disconnect_callback = callback
 
     def set_volume(self, volume: float) -> None:
         """Cambia el volumen del reproductor."""
@@ -156,7 +166,7 @@ class GuildPlayer:
                     await self._notify_track_changed(None)
                     await self.voice.disconnect(force=True)
                     self.voice = None
-                    await self._notify(leaving_message())
+                    await self._notify_disconnected()
                 continue
 
             if self._closed:
@@ -208,6 +218,7 @@ class GuildPlayer:
                 import time
                 self._track_start_time = time.time()
                 self.voice.play(source, after=after_playback)
+                await self._notify_track_started(track)
                 await self._notify_track_changed(track)
                 await self._notify(now_playing_message(track.title, track.requester_name))
 
@@ -282,6 +293,27 @@ class GuildPlayer:
                 self.guild_id,
                 exc,
             )
+
+    async def _notify_track_started(self, track: Track) -> None:
+        if not self._track_started_callback:
+            return
+        try:
+            await self._track_started_callback(track)
+        except Exception:
+            logger.exception("No se pudo registrar una reproduccion en guild %s", self.guild_id)
+
+    async def _notify_disconnected(self) -> None:
+        if self._disconnect_callback:
+            try:
+                await self._disconnect_callback()
+            except discord.HTTPException as exc:
+                logger.warning(
+                    "No se pudo completar la despedida en guild %s: %s",
+                    self.guild_id,
+                    exc,
+                )
+            return
+        await self._notify(leaving_message())
 
 
 class PlayerManager:

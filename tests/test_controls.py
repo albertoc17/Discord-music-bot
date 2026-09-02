@@ -67,6 +67,59 @@ async def test_control_panel_is_republished_after_new_messages() -> None:
 
 
 @pytest.mark.asyncio
+async def test_control_panel_is_removed_from_tracking_before_deletion() -> None:
+    panel = AsyncMock()
+    music = object.__new__(Music)
+    music._control_panels = {1: panel}
+
+    await Music._delete_control_panel(music, 1)
+
+    assert music._control_panels == {}
+    panel.delete.assert_awaited_once_with()
+
+
+@pytest.mark.asyncio
+async def test_leave_deletes_panel_before_farewell() -> None:
+    events: list[str] = []
+    voice = MagicMock()
+    voice.is_connected.return_value = True
+    voice.disconnect = AsyncMock(side_effect=lambda **_kwargs: events.append("disconnect"))
+    player = SimpleNamespace(
+        guild_id=1,
+        voice=voice,
+        stop=MagicMock(side_effect=lambda: events.append("stop")),
+    )
+    music = object.__new__(Music)
+    music._player = MagicMock(return_value=player)
+    music._update_voice_channel_status = AsyncMock(
+        side_effect=lambda *_args: events.append("status-cleared")
+    )
+    music._delete_control_panel = AsyncMock(
+        side_effect=lambda *_args: events.append("panel-deleted")
+    )
+    interaction = SimpleNamespace(
+        response=SimpleNamespace(
+            defer=AsyncMock(side_effect=lambda: events.append("deferred"))
+        ),
+        edit_original_response=AsyncMock(
+            side_effect=lambda **_kwargs: events.append("farewell")
+        ),
+    )
+
+    await Music.leave.callback(music, interaction)
+
+    assert events == [
+        "deferred",
+        "stop",
+        "status-cleared",
+        "disconnect",
+        "panel-deleted",
+        "farewell",
+    ]
+    assert player.voice is None
+
+
+@pytest.mark.asyncio
 async def test_connect_voice_channel_replaces_a_stale_connection() -> None:
     stale_voice = MagicMock()
     stale_voice.is_connected.return_value = False

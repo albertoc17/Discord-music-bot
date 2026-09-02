@@ -41,6 +41,43 @@ async def test_idle_disconnect_sends_a_farewell() -> None:
 
 
 @pytest.mark.asyncio
+async def test_idle_disconnect_runs_cleanup_before_farewell() -> None:
+    player = GuildPlayer(
+        guild_id=1,
+        resolver=MagicMock(),
+        ffmpeg_executable="ffmpeg",
+        volume=0.7,
+        idle_timeout=0.01,
+    )
+    voice = MagicMock()
+    voice.is_connected.return_value = True
+    voice.disconnect = AsyncMock()
+    events: list[str] = []
+    completed = asyncio.Event()
+
+    async def update_track(_track: Track | None) -> None:
+        events.append("panel-updated")
+
+    async def disconnect_cleanup() -> None:
+        events.append("panel-deleted")
+        events.append("farewell")
+        completed.set()
+
+    player.set_voice(voice)
+    player.set_track_callback(update_track)
+    player.set_disconnect_callback(disconnect_cleanup)
+
+    try:
+        await asyncio.wait_for(completed.wait(), timeout=1)
+
+        voice.disconnect.assert_awaited_once_with(force=True)
+        assert player.voice is None
+        assert events == ["panel-updated", "panel-deleted", "farewell"]
+    finally:
+        await player.close()
+
+
+@pytest.mark.asyncio
 async def test_random_event_runs_during_an_eligible_track(monkeypatch) -> None:
     player = GuildPlayer(
         guild_id=1,
