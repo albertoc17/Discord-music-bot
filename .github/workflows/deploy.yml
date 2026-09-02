@@ -7,9 +7,29 @@ on:
 
 jobs:
   deploy:
+    environment: production
     runs-on: ubuntu-latest
 
     steps:
+      - name: Validate deployment configuration
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
+          SERVER_PATH: ${{ secrets.SERVER_PATH }}
+        run: |
+          missing=()
+
+          [ -n "$SERVER_HOST" ] || missing+=("SERVER_HOST")
+          [ -n "$SERVER_USER" ] || missing+=("SERVER_USER")
+          [ -n "$SERVER_SSH_KEY" ] || missing+=("SERVER_SSH_KEY")
+          [ -n "$SERVER_PATH" ] || missing+=("SERVER_PATH")
+
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing production environment secrets: ${missing[*]}"
+            exit 1
+          fi
+
       - name: Deploy to server
         uses: appleboy/ssh-action@v1.0.3
         with:
