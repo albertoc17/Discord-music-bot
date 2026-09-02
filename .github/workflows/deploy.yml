@@ -17,6 +17,8 @@ jobs:
     environment: production
     runs-on: self-hosted
     timeout-minutes: 15
+    env:
+      DEPLOY_PATH: /home/pipe/repos/Discord-music-bot
 
     steps:
       - name: Checkout code
@@ -32,16 +34,33 @@ jobs:
           DEPLOY_VERSION="v${BASE_VERSION}-prod.${GITHUB_RUN_NUMBER}"
 
           echo "version=$DEPLOY_VERSION" >> "$GITHUB_OUTPUT"
-          printf '%s\n' "$DEPLOY_VERSION" > "$GITHUB_WORKSPACE/.deploy-version"
           echo "Deploying $DEPLOY_VERSION from commit ${GITHUB_SHA:0:7}"
 
       - name: Install project dependencies
         shell: bash
         run: |
           set -Eeuo pipefail
-          cd "$GITHUB_WORKSPACE"
 
-          python3 -m venv .venv
+          if [ ! -d "$DEPLOY_PATH/.git" ]; then
+            echo "::error::Repository not found at $DEPLOY_PATH"
+            exit 1
+          fi
+
+          cd "$DEPLOY_PATH"
+
+          if ! git diff --quiet || ! git diff --cached --quiet; then
+            echo "::error::The production repository has uncommitted tracked changes"
+            exit 1
+          fi
+
+          git fetch origin main
+          git checkout --detach "$GITHUB_SHA"
+          printf '%s\n' "${{ steps.version.outputs.version }}" > .deploy-version
+
+          if [ ! -d ".venv" ]; then
+            python3 -m venv .venv
+          fi
+
           source .venv/bin/activate
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev]"
