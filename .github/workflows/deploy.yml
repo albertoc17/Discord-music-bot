@@ -30,5 +30,5 @@ jobs:
         run: |
           set -e
 
-          sudo -n systemctl restart discord-music-bot.service
-          systemctl status discord-music-bot.service --no-pager --lines=20
+          sudo -n systemctl restart discord-music-bot
+          systemctl status discord-music-bot --no-pager --lines=20
