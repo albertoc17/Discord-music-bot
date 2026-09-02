@@ -14,33 +14,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Deploy locally on the Ubuntu server
+      - name: Install project dependencies
         shell: bash
         run: |
           set -e
+          cd "$GITHUB_WORKSPACE"
 
-          REPO_PATH="/home/pipe/repos/Discord-music-bot"
-
-          if [ ! -d "$REPO_PATH/.git" ]; then
-            echo "Repository not found at $REPO_PATH"
-            exit 1
-          fi
-
-          cd "$REPO_PATH"
-          git pull origin main
-
-          if [ ! -d ".venv" ]; then
-            python3 -m venv .venv
-          fi
-
+          python3 -m venv .venv
           source .venv/bin/activate
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev]"
 
-          if [ ! -f ".env" ]; then
-            cp .env.example .env
-            echo "Created .env from example. Fill in DISCORD_TOKEN and DISCORD_GUILD_ID on the server."
-          fi
+      - name: Restart bot service
+        shell: bash
+        run: |
+          set -e
 
           sudo -n systemctl restart discord-music-bot.service
           systemctl status discord-music-bot.service --no-pager --lines=20
