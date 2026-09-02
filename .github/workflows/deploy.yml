@@ -5,19 +5,40 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     environment: production
     runs-on: self-hosted
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Generate deployment version
+        id: version
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          BASE_VERSION="$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+          DEPLOY_VERSION="v${BASE_VERSION}-prod.${GITHUB_RUN_NUMBER}"
+
+          echo "version=$DEPLOY_VERSION" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$DEPLOY_VERSION" > "$GITHUB_WORKSPACE/.deploy-version"
+          echo "Deploying $DEPLOY_VERSION from commit ${GITHUB_SHA:0:7}"
+
       - name: Install project dependencies
         shell: bash
         run: |
-          set -e
+          set -Eeuo pipefail
           cd "$GITHUB_WORKSPACE"
 
           python3 -m venv .venv
@@ -28,7 +49,39 @@ jobs:
       - name: Restart bot service
         shell: bash
         run: |
-          set -e
+          set -Eeuo pipefail
 
           sudo -n systemctl restart discord-music-bot
           systemctl status discord-music-bot --no-pager --lines=20
+
+      - name: Tag successful production deployment
+        shell: bash
+        env:
+          DEPLOY_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -Eeuo pipefail
+
+          git fetch --tags
+
+          if git show-ref --verify --quiet "refs/tags/$DEPLOY_VERSION"; then
+            TAGGED_COMMIT="$(git rev-list -n 1 "$DEPLOY_VERSION")"
+
+            if [ "$TAGGED_COMMIT" != "$GITHUB_SHA" ]; then
+              echo "::error::Tag $DEPLOY_VERSION already points to $TAGGED_COMMIT"
+              exit 1
+            fi
+
+            echo "Tag $DEPLOY_VERSION already exists for this commit"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag --annotate "$DEPLOY_VERSION" "$GITHUB_SHA" \
+              --message "Production deployment $DEPLOY_VERSION"
+            git push origin "refs/tags/$DEPLOY_VERSION"
+          fi
+
+          {
+            echo "### Production deployment"
+            echo "- Version: \`$DEPLOY_VERSION\`"
+            echo "- Commit: \`${GITHUB_SHA:0:7}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

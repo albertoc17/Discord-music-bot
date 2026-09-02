@@ -71,6 +71,7 @@ Tambien queda instalado el comando `discord-music-bot`.
 - `/volume [nivel]`: ajusta el volumen de 0 a 100 (defecto: 70%).
 - `/quality [bitrate]`: cambia la calidad de audio (64k, 96k, 128k, 192k, 256k).
 - `/ping`: muestra la latencia del bot.
+- `/status`: muestra la version desplegada y el consumo de CPU y memoria del bot.
 - `/help`: lista todos los comandos disponibles.
 
 Al conectarse con `/play`, Arturo publica un panel que se mantiene al final del chat con:

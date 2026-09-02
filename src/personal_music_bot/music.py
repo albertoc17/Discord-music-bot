@@ -436,6 +436,7 @@ class Music(commands.Cog):
                 ("/volume [nivel]", "Ajusta el volumen de 0 a 100"),
                 ("/quality [bitrate]", "Cambia la calidad de audio (64k, 96k, 128k, 192k, 256k)"),
                 ("/ping", "Muestra la latencia del bot"),
+                ("/status", "Muestra la version y el consumo de recursos"),
                 ("/help", "Muestra este mensaje de ayuda"),
             ]),
         ]
