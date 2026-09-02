@@ -42,5 +42,5 @@ jobs:
             echo "Created .env from example. Fill in DISCORD_TOKEN and DISCORD_GUILD_ID on the server."
           fi
 
-          sudo systemctl restart discord-music-bot
-          sudo systemctl status discord-music-bot --no-pager | head -n 20
+          sudo -n systemctl restart discord-music-bot.service
+          systemctl status discord-music-bot.service --no-pager --lines=20
