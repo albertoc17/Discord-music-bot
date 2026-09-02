@@ -19,7 +19,7 @@ jobs:
         run: |
           set -e
 
-          REPO_PATH="/repos/Discord-music-bot"
+          REPO_PATH="/home/pipe/repos/Discord-music-bot"
 
           if [ ! -d "$REPO_PATH/.git" ]; then
             echo "Repository not found at $REPO_PATH"
