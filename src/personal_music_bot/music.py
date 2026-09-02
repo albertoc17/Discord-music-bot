@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import random
 from contextlib import suppress
 
 import discord
@@ -13,6 +14,7 @@ from personal_music_bot.messages import (
     leaving_message,
     not_found_message,
     playlist_queued_message,
+    random_insult_message,
     searching_message,
     track_queued_message,
 )
@@ -99,6 +101,32 @@ class Music(commands.Cog):
                 await self._ensure_control_panel(interaction.guild_id, channel, player)
 
         player.set_status_callback(send_status)
+
+        async def send_random_insult() -> None:
+            if not player.voice:
+                return
+            voice_channel = player.voice.channel
+            members = [member for member in voice_channel.members if not member.bot]
+            channel = interaction.channel
+            if not members or not channel or not hasattr(channel, "send"):
+                return
+
+            member = random.choice(members)
+            display_name = discord.utils.escape_markdown(member.display_name)
+            try:
+                await channel.send(
+                    random_insult_message(display_name),
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+                await self._ensure_control_panel(interaction.guild_id, channel, player)
+            except (discord.Forbidden, discord.HTTPException) as exc:
+                logger.warning(
+                    "No se pudo enviar una puteada aleatoria en guild %s: %s",
+                    interaction.guild_id,
+                    exc,
+                )
+
+        player.set_random_event_callback(send_random_insult)
 
         async def update_panel(track: Track | None) -> None:
             await self._update_voice_channel_status(player, track)

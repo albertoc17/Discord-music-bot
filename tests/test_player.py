@@ -3,6 +3,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from personal_music_bot import player as player_module
+from personal_music_bot.media import Track
 from personal_music_bot.player import GuildPlayer
 
 
@@ -34,5 +36,42 @@ async def test_idle_disconnect_sends_a_farewell() -> None:
         voice.disconnect.assert_awaited_once_with(force=True)
         assert player.voice is None
         assert len(status_messages) == 1
+    finally:
+        await player.close()
+
+
+@pytest.mark.asyncio
+async def test_random_event_runs_during_an_eligible_track(monkeypatch) -> None:
+    player = GuildPlayer(
+        guild_id=1,
+        resolver=MagicMock(),
+        ffmpeg_executable="ffmpeg",
+        volume=0.7,
+        idle_timeout=300,
+    )
+    track = Track(
+        title="Tren al sur",
+        webpage_url="https://example.com/track",
+        duration=245,
+        requester_id=1,
+        requester_name="Alberto",
+    )
+    voice = MagicMock()
+    voice.is_connected.return_value = True
+    voice.disconnect = AsyncMock()
+    callback = AsyncMock()
+    sleep = AsyncMock()
+    monkeypatch.setattr(player_module.random, "random", lambda: 0)
+    monkeypatch.setattr(player_module.random, "uniform", lambda _start, _end: 42)
+    monkeypatch.setattr(player_module.asyncio, "sleep", sleep)
+    player.current = track
+    player.voice = voice
+    player.set_random_event_callback(callback)
+
+    try:
+        await player._schedule_random_event(track)
+
+        sleep.assert_awaited_once_with(42)
+        callback.assert_awaited_once()
     finally:
         await player.close()
