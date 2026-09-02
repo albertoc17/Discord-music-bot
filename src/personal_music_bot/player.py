@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import random
 from collections import deque
 from collections.abc import Awaitable, Callable
 
@@ -18,6 +19,11 @@ logger = logging.getLogger(__name__)
 
 StatusCallback = Callable[[str], Awaitable[None]]
 TrackCallback = Callable[[Track | None], Awaitable[None]]
+RandomEventCallback = Callable[[], Awaitable[None]]
+
+RANDOM_EVENT_CHANCE = 0.05
+RANDOM_EVENT_MIN_DELAY = 20
+RANDOM_EVENT_MAX_DELAY = 120
 
 
 class GuildPlayer:
@@ -46,6 +52,7 @@ class GuildPlayer:
         self._next = asyncio.Event()
         self._status_callback: StatusCallback | None = None
         self._track_callback: TrackCallback | None = None
+        self._random_event_callback: RandomEventCallback | None = None
         self._cancel_current = False
         self._closed = False
         self._task = asyncio.create_task(self._player_loop(), name=f"player-{guild_id}")
@@ -75,6 +82,9 @@ class GuildPlayer:
 
     def set_track_callback(self, callback: TrackCallback) -> None:
         self._track_callback = callback
+
+    def set_random_event_callback(self, callback: RandomEventCallback) -> None:
+        self._random_event_callback = callback
 
     def set_volume(self, volume: float) -> None:
         """Cambia el volumen del reproductor."""
@@ -164,6 +174,7 @@ class GuildPlayer:
             self.current = track
             self._cancel_current = False
             self._next.clear()
+            random_event_task: asyncio.Task[None] | None = None
 
             try:
                 stream = await self.resolver.stream_for(track)
@@ -195,7 +206,12 @@ class GuildPlayer:
                 self.voice.play(source, after=after_playback)
                 await self._notify_track_changed(track)
                 await self._notify(now_playing_message(track.title, track.requester_name))
-                
+
+                random_event_task = asyncio.create_task(
+                    self._schedule_random_event(track),
+                    name=f"random-event-{self.guild_id}",
+                )
+
                 # Esperar fin de canción, actualizando el panel cada 1 segundo
                 while not self._next.is_set() and not self._cancel_current:
                     try:
@@ -212,9 +228,36 @@ class GuildPlayer:
                 logger.exception("Fallo inesperado al reproducir %s", track.webpage_url)
                 await self._notify(f"No pude reproducir **{track.title}**.")
             finally:
+                if random_event_task:
+                    random_event_task.cancel()
+                    await asyncio.gather(random_event_task, return_exceptions=True)
                 self.current = None
                 self._track_start_time = None
                 await self._notify_track_changed(None)
+
+    async def _schedule_random_event(self, track: Track) -> None:
+        """Programa, con cierta probabilidad, un evento durante la canción."""
+        if not self._random_event_callback or random.random() >= RANDOM_EVENT_CHANCE:
+            return
+
+        maximum_delay = RANDOM_EVENT_MAX_DELAY
+        if track.duration:
+            maximum_delay = min(maximum_delay, track.duration - 5)
+        if maximum_delay < RANDOM_EVENT_MIN_DELAY:
+            return
+
+        await asyncio.sleep(random.uniform(RANDOM_EVENT_MIN_DELAY, maximum_delay))
+        if self.current is not track or not self.voice or not self.voice.is_connected():
+            return
+
+        try:
+            await self._random_event_callback()
+        except discord.HTTPException as exc:
+            logger.warning(
+                "No se pudo enviar el evento aleatorio en guild %s: %s",
+                self.guild_id,
+                exc,
+            )
 
     async def _notify(self, message: str) -> None:
         if not self._status_callback:

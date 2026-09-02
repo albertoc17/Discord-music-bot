@@ -89,6 +89,9 @@ queda inactivo, el bot se despide y se desconecta solo después de cinco minutos
 tiempo, el volumen, el bitrate de audio, el límite de una playlist y la ruta a FFmpeg se
 pueden cambiar en `.env`; revisa `.env.example`.
 
+En cada canción hay un 5% de probabilidad de que Arturo putee, en un momento aleatorio,
+a una persona del canal de voz. El nombre se muestra como texto y no genera una mención.
+
 ## Calidad
 
 ```powershell
