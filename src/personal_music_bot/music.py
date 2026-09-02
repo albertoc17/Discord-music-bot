@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from contextlib import suppress
 
 import discord
 from discord import app_commands
@@ -25,6 +26,7 @@ class Music(commands.Cog):
         self.bot = bot
         self.settings = settings
         self._control_panels: dict[int, discord.Message] = {}
+        self._voice_channel_statuses: dict[int, tuple[int, str | None]] = {}
         self.resolver = MediaResolver(settings.max_playlist_items)
         self.players = PlayerManager(
             resolver=self.resolver,
@@ -38,6 +40,8 @@ class Music(commands.Cog):
 
     async def cog_unload(self) -> None:
         self._persistent_controls.stop()
+        for player in self.players.active_players:
+            await self._update_voice_channel_status(player, None)
         await self.players.close_all()
 
     async def _connect(self, interaction: discord.Interaction) -> GuildPlayer:
@@ -91,13 +95,17 @@ class Music(commands.Cog):
             channel = interaction.channel
             if channel and hasattr(channel, "send"):
                 await channel.send(message)
+                # Los avisos de cambio de canción no deben dejar el panel enterrado.
+                await self._ensure_control_panel(interaction.guild_id, channel, player)
 
         player.set_status_callback(send_status)
 
-        async def update_panel(_track: Track | None) -> None:
+        async def update_panel(track: Track | None) -> None:
+            await self._update_voice_channel_status(player, track)
             await self._update_control_panel(interaction.guild_id)
 
         player.set_track_callback(update_panel)
+        await self._update_voice_channel_status(player, player.current)
         await self._ensure_control_panel(interaction.guild_id, interaction.channel, player)
         return player
 
@@ -112,7 +120,7 @@ class Music(commands.Cog):
             color = discord.Color.blurple()
 
         embed = discord.Embed(
-            title="🎛️ Panel de Arturo",
+            title="🎧 Panel de Arturo",
             description=description,
             color=color,
         )
@@ -140,6 +148,37 @@ class Music(commands.Cog):
         embed.set_footer(text="Usa los botones para controlar la música")
         return embed
 
+    async def _update_voice_channel_status(
+        self,
+        player: GuildPlayer,
+        track: Track | None,
+    ) -> None:
+        """Muestra la canción actual en el estado del canal de voz."""
+        if not player.voice:
+            return
+        channel = player.voice.channel
+        if not isinstance(channel, (discord.VoiceChannel, discord.StageChannel)):
+            return
+
+        status = f"🎵 {track.title}"[:500] if track else None
+        status_key = (channel.id, status)
+        if self._voice_channel_statuses.get(player.guild_id) == status_key:
+            return
+
+        # Guardarlo antes de llamar a Discord evita reintentos cada segundo si falta permiso.
+        self._voice_channel_statuses[player.guild_id] = status_key
+        try:
+            await channel.edit(
+                status=status,
+                reason="Actualizar la canción que está reproduciendo Arturo",
+            )
+        except (discord.Forbidden, discord.HTTPException) as exc:
+            logger.warning(
+                "No se pudo actualizar el estado del canal de voz %s: %s",
+                channel.id,
+                exc,
+            )
+
     async def _ensure_control_panel(
         self,
         guild_id: int,
@@ -148,21 +187,18 @@ class Music(commands.Cog):
     ) -> None:
         embed = self._control_panel_embed(player)
         existing = self._control_panels.get(guild_id)
-        
-        # Eliminar el panel anterior si existe
-        if existing:
-            try:
-                await existing.delete()
-            except (discord.NotFound, discord.HTTPException):
-                pass
-            self._control_panels.pop(guild_id, None)
-        
-        # Crear un panel nuevo al fondo del chat
+
+        # Publicar primero mantiene el panel anterior si Discord rechaza el nuevo.
         try:
             panel = await text_channel.send(embed=embed, view=MusicControls(self))
             self._control_panels[guild_id] = panel
         except (discord.Forbidden, discord.HTTPException) as exc:
             logger.warning("No se pudo publicar el panel en guild %s: %s", guild_id, exc)
+            return
+
+        if existing and existing != panel:
+            with suppress(discord.NotFound, discord.HTTPException):
+                await existing.delete()
 
     async def _update_control_panel(self, guild_id: int) -> None:
         panel = self._control_panels.get(guild_id)
@@ -298,10 +334,13 @@ class Music(commands.Cog):
         player = self._player(interaction)
         player.stop()
         if player.voice and player.voice.is_connected():
+            await self._update_voice_channel_status(player, None)
             await player.voice.disconnect(force=True)
             player.voice = None
         await self._update_control_panel(player.guild_id)
         await interaction.response.send_message(leaving_message())
+        if interaction.channel:
+            await self._ensure_control_panel(player.guild_id, interaction.channel, player)
 
     @app_commands.command(name="quality", description="Cambia la calidad de audio")
     @app_commands.describe(bitrate="Selecciona la calidad de audio")

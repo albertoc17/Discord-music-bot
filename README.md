@@ -23,8 +23,9 @@ Responde con distintas frases chilenas mientras busca, agrega y reproduce temas.
    **Discord Provided Link**.
 4. En **Default Install Settings > Guild Install**, agrega los scopes `bot` y
    `applications.commands`.
-5. Concede solamente **View Channels**, **Send Messages**, **Connect** y
-   **Speak**. Copia el enlace de instalacion, abrelo y elige tu servidor.
+5. Concede solamente **View Channels**, **Send Messages**, **Connect**, **Speak**
+   y **Set Voice Channel Status**. Copia el enlace de instalacion, abrelo y
+   elige tu servidor.
 6. En Discord, activa **Ajustes de usuario > Avanzado > Modo desarrollador**.
    Haz clic derecho sobre tu servidor, selecciona **Copiar ID del servidor** y
    guardalo en `DISCORD_GUILD_ID` dentro de `.env`.
@@ -72,7 +73,7 @@ Tambien queda instalado el comando `discord-music-bot`.
 - `/ping`: muestra la latencia del bot.
 - `/help`: lista todos los comandos disponibles.
 
-Al conectarse con `/play`, Arturo publica un panel con:
+Al conectarse con `/play`, Arturo publica un panel que se mantiene al final del chat con:
 - Título y enlace de la canción actual
 - **Barra de progreso** que se actualiza en tiempo real (se muestra cada 1 segundo)
 - Duración actual / total
@@ -83,7 +84,10 @@ Al conectarse con `/play`, Arturo publica un panel con:
 Los botones permiten reproducir/pausar (⏯️), detener (⏹️) y pasar a la siguiente canción (⏭️).
 Solo los usuarios en el mismo canal de voz pueden usarlos.
 
-Si queda inactivo, el bot se desconecta solo después de cinco minutos. Este tiempo, el volumen, el bitrate de audio, el límite de una playlist y la ruta a FFmpeg se pueden cambiar en `.env`; revisa `.env.example`.
+Mientras reproduce, el estado del canal de voz muestra el nombre de la canción actual. Si
+queda inactivo, el bot se despide y se desconecta solo después de cinco minutos. Este
+tiempo, el volumen, el bitrate de audio, el límite de una playlist y la ruta a FFmpeg se
+pueden cambiar en `.env`; revisa `.env.example`.
 
 ## Calidad
 

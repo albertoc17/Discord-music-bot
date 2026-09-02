@@ -8,7 +8,11 @@ from collections.abc import Awaitable, Callable
 import discord
 
 from personal_music_bot.media import MediaError, MediaResolver, Track
-from personal_music_bot.messages import now_playing_message, playback_failed_message
+from personal_music_bot.messages import (
+    leaving_message,
+    now_playing_message,
+    playback_failed_message,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -137,8 +141,11 @@ class GuildPlayer:
                 await asyncio.wait_for(self._queue_ready.wait(), timeout=self.idle_timeout)
             except TimeoutError:
                 if self.voice and self.voice.is_connected() and not self.current:
+                    # Limpia el panel y el estado del canal antes de desconectarse.
+                    await self._notify_track_changed(None)
                     await self.voice.disconnect(force=True)
                     self.voice = None
+                    await self._notify(leaving_message())
                 continue
 
             if self._closed:
@@ -245,6 +252,10 @@ class PlayerManager:
         self.idle_timeout = idle_timeout
         self.audio_bitrate = audio_bitrate
         self._players: dict[int, GuildPlayer] = {}
+
+    @property
+    def active_players(self) -> tuple[GuildPlayer, ...]:
+        return tuple(self._players.values())
 
     def get(self, guild_id: int) -> GuildPlayer:
         if guild_id not in self._players:
