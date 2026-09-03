@@ -120,6 +120,38 @@ async def test_leave_deletes_panel_before_farewell() -> None:
 
 
 @pytest.mark.asyncio
+async def test_play_shows_discord_spinner_while_searching() -> None:
+    events: list[str] = []
+    player = SimpleNamespace()
+    track = Track(
+        title="Tren al sur",
+        webpage_url="https://example.com/track",
+        duration=245,
+        requester_id=1,
+        requester_name="Alberto",
+    )
+    music = object.__new__(Music)
+    music.resolver = SimpleNamespace(max_playlist_items=50)
+    music._connect = AsyncMock(
+        side_effect=lambda *_args: events.append("deferred-before-connect") or player
+    )
+    music._search_and_enqueue = AsyncMock(return_value=[track])
+    interaction = SimpleNamespace(
+        user=SimpleNamespace(id=1, display_name="Alberto"),
+        response=SimpleNamespace(
+            defer=AsyncMock(side_effect=lambda **_kwargs: events.append("deferred"))
+        ),
+        edit_original_response=AsyncMock(),
+    )
+
+    await Music.play.callback(music, interaction, "Tren al sur")
+
+    interaction.response.defer.assert_awaited_once_with(thinking=True)
+    assert events == ["deferred", "deferred-before-connect"]
+    interaction.edit_original_response.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_connect_voice_channel_replaces_a_stale_connection() -> None:
     stale_voice = MagicMock()
     stale_voice.is_connected.return_value = False

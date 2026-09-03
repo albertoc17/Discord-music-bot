@@ -16,7 +16,6 @@ from personal_music_bot.messages import (
     not_found_message,
     playlist_queued_message,
     random_insult_message,
-    searching_message,
     track_queued_message,
 )
 from personal_music_bot.player import GuildPlayer, PlayerManager
@@ -362,7 +361,9 @@ class Music(commands.Cog):
     @app_commands.command(name="play", description="Busca o agrega una URL a la cola")
     @app_commands.describe(busqueda="Nombre, URL de una pista o URL de una playlist")
     async def play(self, interaction: discord.Interaction, busqueda: str) -> None:
-        await interaction.response.send_message(searching_message())
+        # Discord muestra su spinner nativo hasta que editemos la respuesta
+        # con el resultado de la búsqueda (o con el error correspondiente).
+        await interaction.response.defer(thinking=True)
         try:
             player = await self._connect(interaction)
             tracks = await self._search_and_enqueue(busqueda, interaction.user, player)
