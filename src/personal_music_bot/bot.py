@@ -5,6 +5,7 @@ import logging
 import discord
 from discord.ext import commands
 
+from personal_music_bot.channel_checks import MusicChannelCommandTree
 from personal_music_bot.config import Settings
 from personal_music_bot.music import Music
 from personal_music_bot.system_status import SystemStatus
@@ -16,7 +17,11 @@ class PersonalAssistantBot(commands.Bot):
     def __init__(self, settings: Settings) -> None:
         intents = discord.Intents.default()
         intents.voice_states = True
-        super().__init__(command_prefix=settings.command_prefix, intents=intents)
+        super().__init__(
+            command_prefix=settings.command_prefix,
+            intents=intents,
+            tree_cls=MusicChannelCommandTree,
+        )
         self.settings = settings
 
     async def setup_hook(self) -> None:

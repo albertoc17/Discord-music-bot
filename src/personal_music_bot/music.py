@@ -9,6 +9,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from personal_music_bot.channel_checks import check_music_channel
 from personal_music_bot.config import Settings
 from personal_music_bot.media import MediaError, MediaResolver, Track, format_duration
 from personal_music_bot.messages import (
@@ -16,6 +17,7 @@ from personal_music_bot.messages import (
     not_found_message,
     playlist_queued_message,
     random_insult_message,
+    size_message,
     track_queued_message,
 )
 from personal_music_bot.player import GuildPlayer, PlayerManager
@@ -531,6 +533,17 @@ class Music(commands.Cog):
             f"Volumen ajustado a **{nivel}%**\n`{volume_bar}`"
         )
 
+    @app_commands.command(
+        name="cuandtomemide", description="El tulómetro de Arturo: una medición al azar y una talla"
+    )
+    async def cuandtomemide(self, interaction: discord.Interaction) -> None:
+        size = random.randint(1, 47)
+        member = discord.utils.escape_markdown(interaction.user.display_name)
+        await interaction.response.send_message(
+            size_message(member, size),
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+
     @app_commands.command(name="ping", description="Muestra la latencia del bot")
     async def ping(self, interaction: discord.Interaction) -> None:
         latency = round(self.bot.latency * 1000)
@@ -545,6 +558,9 @@ class Music(commands.Cog):
         )
         
         commands_info = [
+            ("🎲 **Humor**", [
+                ("/cuandtomemide", "El tulómetro: de 1 a 47 cm al azar, con talla incluida"),
+            ]),
             ("🎵 **Música**", [
                 ("/play [búsqueda]", "Busca una canción o agrega una URL a la cola"),
                 ("/pause", "Pausa la música actual"),
@@ -599,6 +615,9 @@ class MusicControls(discord.ui.View):
     def __init__(self, music: Music) -> None:
         super().__init__(timeout=None)
         self.music = music
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        return await check_music_channel(interaction)
 
     async def _player_for(self, interaction: discord.Interaction) -> GuildPlayer | None:
         if not interaction.guild_id or not isinstance(interaction.user, discord.Member):

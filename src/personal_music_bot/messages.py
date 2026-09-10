@@ -135,6 +135,65 @@ _RANDOM_INSULTS = (
 )
 
 
+_WRONG_CHANNEL = (
+    "Puta que eres aweonao, solo se me llama desde #musica, papito.",
+    "¿Te perdiste, weón? Los comandos van en #musica, no acá.",
+    "Aweonao, este no es mi camarín. Anda a #musica y llámame de nuevo.",
+    "Papito, tenís un canal llamado #musica y aun así la cagái de puerta.",
+    "No doy conciertos a domicilio, weón. Pídeme la weá en #musica.",
+    "¿Leer el nombre del canal te cuesta, qlo? Solo atiendo en #musica.",
+    "Más perdido que la chucha. Anda a #musica, ahí se me llama, papito.",
+    "Acá no, po, aweonao. Lleva tus comandos a #musica.",
+    "Le achuntaste al bot y fallaste el canal, saco de weas. Prueba en #musica.",
+    "Mueve la raja pa #musica, papito. Desde acá no hago ni una weá.",
+    "Otra vez dando la cacha, weón. Mi oficina queda en #musica.",
+    "Guarda el comando y usa la cabeza, aweonao: se me llama desde #musica.",
+)
+
+
+_SIZE_JOKES = (
+    (5, (
+        "Edición de bolsillo, papito. Viene con llavero incluido.",
+        "La busqué con lupa, weón. Casi la confundo con un pixel muerto.",
+        "Formato demo: para desbloquear el resto te falta el DLC.",
+    )),
+    (15, (
+        "Modelo compacto, papito. Estaciona en cualquier parte.",
+        "Sin tanto marketing, weón. La caja era más grande que el producto.",
+        "Arturo certifica: equipaje de mano, sin cobro adicional.",
+    )),
+    (25, (
+        "Ya po, tampoco era pa ponerla en el currículum, aweonao.",
+        "Buen metraje, papito, pero igual no te da permiso pa saltarte la cola.",
+        "La huincha aguantó, pero tu ego acaba de botar el servidor.",
+    )),
+    (46, (
+        "Eso ya paga contribuciones, weón. Anda a declararlo a la muni.",
+        "Papito, esa weá necesita permiso de circulación.",
+        "¿Pediste una medición o trajiste un poste de luz, qlo?",
+    )),
+    (47, (
+        "¡47, CTM! Tope de gama. Se acabó la huincha y renunció el inspector.",
+        "¡Récord de Arturo! Esa weá no usa calzoncillos, usa funda de guitarra.",
+        "¡Máximo permitido, papito! Un centímetro más y Discord cobra Nitro.",
+    )),
+)
+
+
+def size_message(member: str, size: int) -> str:
+    for maximum, jokes in _SIZE_JOKES:
+        if size <= maximum:
+            return (
+                f"📏 {member}, el tulómetro de Arturo dice que te mide **{size} cm**. "
+                f"{choice(jokes)}\nMedición al azar, ciencia de la weá."
+            )
+    raise ValueError("El tulómetro llega hasta 47 cm.")
+
+
+def wrong_channel_message() -> str:
+    return choice(_WRONG_CHANNEL)
+
+
 def searching_message() -> str:
     return choice(_SEARCHING)
 

@@ -10,5 +10,6 @@ venv/
 .ruff_cache/
 dist/
 build/
+tmp/
 *.egg-info/
 data/*.sqlite3*
