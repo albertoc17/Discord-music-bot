@@ -267,11 +267,12 @@ class GuildPlayer:
 
         try:
             await self._random_event_callback()
-        except discord.HTTPException as exc:
+        except Exception as exc:
             logger.warning(
                 "No se pudo enviar el evento aleatorio en guild %s: %s",
                 self.guild_id,
                 exc,
+                exc_info=True,
             )
 
     async def _notify(self, message: str) -> None:
@@ -279,19 +280,24 @@ class GuildPlayer:
             return
         try:
             await self._status_callback(message)
-        except discord.HTTPException as exc:
-            logger.warning("No se pudo enviar el estado en guild %s: %s", self.guild_id, exc)
+        except Exception as exc:
+            logger.warning(
+                "No se pudo enviar el estado en guild %s: %s", self.guild_id, exc, exc_info=True
+            )
 
     async def _notify_track_changed(self, track: Track | None) -> None:
         if not self._track_callback:
             return
         try:
             await self._track_callback(track)
-        except discord.HTTPException as exc:
+        # Los fallos del panel no deben finalizar una reproduccion activa.
+        # CancelledError se propaga para permitir cerrar el reproductor.
+        except Exception as exc:
             logger.warning(
                 "No se pudo actualizar el panel en guild %s: %s",
                 self.guild_id,
                 exc,
+                exc_info=True,
             )
 
     async def _notify_track_started(self, track: Track) -> None:
@@ -306,11 +312,12 @@ class GuildPlayer:
         if self._disconnect_callback:
             try:
                 await self._disconnect_callback()
-            except discord.HTTPException as exc:
+            except Exception as exc:
                 logger.warning(
                     "No se pudo completar la despedida en guild %s: %s",
                     self.guild_id,
                     exc,
+                    exc_info=True,
                 )
             return
         await self._notify(leaving_message())
