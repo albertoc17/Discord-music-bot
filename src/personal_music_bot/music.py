@@ -534,9 +534,9 @@ class Music(commands.Cog):
         )
 
     @app_commands.command(
-        name="cuandtomemide", description="El tulómetro de Arturo: una medición al azar y una talla"
+        name="cuantomemide", description="El tulómetro de Arturo: una medición al azar y una talla"
     )
-    async def cuandtomemide(self, interaction: discord.Interaction) -> None:
+    async def cuantomemide(self, interaction: discord.Interaction) -> None:
         size = random.randint(1, 47)
         member = discord.utils.escape_markdown(interaction.user.display_name)
         await interaction.response.send_message(
@@ -559,7 +559,7 @@ class Music(commands.Cog):
         
         commands_info = [
             ("🎲 **Humor**", [
-                ("/cuandtomemide", "El tulómetro: de 1 a 47 cm al azar, con talla incluida"),
+                ("/cuantomemide", "El tulómetro: de 1 a 47 cm al azar, con talla incluida"),
             ]),
             ("🎵 **Música**", [
                 ("/play [búsqueda]", "Busca una canción o agrega una URL a la cola"),

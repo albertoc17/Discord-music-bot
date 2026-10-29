@@ -57,10 +57,11 @@ Tambien queda instalado el comando `discord-music-bot`.
 
 ## Comandos
 
-- `/cuandtomemide`: mide en broma a quien lo ejecuta, con un número aleatorio
+- `/cuantomemide`: mide en broma a quien lo ejecuta, con un número aleatorio
   entre 1 y 47 cm y una talla según el resultado. Cada uso hace un nuevo sorteo.
 
-Todos los comandos y botones de Arturo funcionan solo en el canal de texto
+`/cuantomemide` se puede usar en cualquier canal de texto del servidor.
+Los demás comandos y botones de Arturo funcionan solo en el canal de texto
 llamado exactamente `musica`. En otros canales responde con una puteada chilena
 al azar indicando que uses `#musica`, sin ejecutar la acción. Los hilos y los
 mensajes privados tampoco están habilitados.

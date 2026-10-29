@@ -24,4 +24,13 @@ async def check_music_channel(interaction: discord.Interaction) -> bool:
 
 class MusicChannelCommandTree(app_commands.CommandTree):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        # The tree check runs before discord.py resolves interaction.command.
+        data = interaction.data or {}
+        if (
+            data.get("name") == "cuantomemide"
+            and data.get("type") == discord.AppCommandType.chat_input.value
+            and interaction.guild_id is not None
+            and isinstance(interaction.channel, discord.TextChannel)
+        ):
+            return True
         return await check_music_channel(interaction)
