@@ -19,6 +19,7 @@ jobs:
     timeout-minutes: 15
     env:
       DEPLOY_PATH: /home/pipe/repos/Discord-music-bot
+      DISCORD_GUILD_ID: ${{ vars.DISCORD_GUILD_ID || '776554750333550662' }}
 
     steps:
       - name: Checkout code
@@ -64,6 +65,30 @@ jobs:
           source .venv/bin/activate
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev]"
+
+      - name: Configure Discord server
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          cd "$DEPLOY_PATH"
+          .venv/bin/python - <<'PY'
+          import os
+          from pathlib import Path
+
+          from dotenv import set_key
+
+          guild_id = os.environ["DISCORD_GUILD_ID"].strip()
+          if not guild_id.isascii() or not guild_id.isdecimal() or int(guild_id) <= 0:
+              raise SystemExit("DISCORD_GUILD_ID must be a positive integer")
+
+          env_path = Path(".env")
+          if not env_path.is_file():
+              raise SystemExit("Missing production .env; configure DISCORD_TOKEN first")
+
+          set_key(str(env_path), "DISCORD_GUILD_ID", guild_id, quote_mode="never")
+          print(f"Discord commands will sync to server {guild_id}")
+          PY
 
       - name: Validate media runtime
         shell: bash

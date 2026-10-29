@@ -47,6 +47,12 @@ Copy-Item .env.example .env
 
 Nunca publiques el archivo `.env` ni el token del bot.
 
+El despliegue de GitHub Actions usa `DISCORD_GUILD_ID` de las variables del
+repositorio o del entorno `production`, con `776554750333550662` como valor
+predeterminado. Antes de reiniciar el servicio, actualiza esa clave en el `.env`
+del servidor conservando el token y las demás opciones. El bot sincroniza los
+comandos con ese servidor al arrancar; no hace falta volver a invitarlo.
+
 ## Ejecutar
 
 ```powershell
