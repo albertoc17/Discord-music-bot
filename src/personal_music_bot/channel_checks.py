@@ -5,6 +5,8 @@ from discord import app_commands
 
 from personal_music_bot.messages import wrong_channel_message
 
+ANY_CHANNEL_COMMANDS = {"partido", "tabla", "calendario", "jugador"}
+
 
 async def check_music_channel(interaction: discord.Interaction) -> bool:
     channel = interaction.channel
@@ -27,7 +29,7 @@ class MusicChannelCommandTree(app_commands.CommandTree):
         # The tree check runs before discord.py resolves interaction.command.
         data = interaction.data or {}
         if (
-            data.get("name") == "cuantomemide"
+            data.get("name") in ANY_CHANNEL_COMMANDS | {"cuantomemide"}
             and data.get("type") == discord.AppCommandType.chat_input.value
             and interaction.guild_id is not None
             and isinstance(interaction.channel, discord.TextChannel)

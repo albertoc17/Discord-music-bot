@@ -9,7 +9,10 @@ from personal_music_bot.music import Music, MusicControls
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("command_name", ["play", "cuantomemide", "cuandtomemide"])
+@pytest.mark.parametrize(
+    "command_name",
+    ["play", "cuantomemide", "cuandtomemide", "partido", "tabla", "calendario", "jugador"],
+)
 @pytest.mark.parametrize("entrypoint", [MusicChannelCommandTree, MusicControls])
 @pytest.mark.parametrize(
     ("channel_type", "name", "guild_id", "allowed"),
@@ -28,7 +31,7 @@ async def test_interactions_only_run_in_music_text_channel(
 ) -> None:
     if (
         entrypoint is MusicChannelCommandTree
-        and command_name == "cuantomemide"
+        and command_name in {"cuantomemide", "partido", "tabla", "calendario", "jugador"}
         and channel_type is discord.TextChannel
         and guild_id is not None
     ):
