@@ -27,7 +27,7 @@ class PersonalAssistantBot(commands.Bot):
 
     async def setup_hook(self) -> None:
         await self.add_cog(Music(self, self.settings))
-        await self.add_cog(Sports(self, self.settings))
+        await self.add_cog(Sports(self))
         await self.add_cog(SystemStatus(self))
         if self.settings.guild_id:
             guild = discord.Object(id=self.settings.guild_id)

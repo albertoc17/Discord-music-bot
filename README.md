@@ -71,7 +71,7 @@ Tambien queda instalado el comando `discord-music-bot`.
 - `/equipo [nombre] [temporada]`: ficha, estadio y balance de temporada de un club chileno.
 - `/jugador [nombre] [temporada]`: equipo, posición y estadísticas de temporada disponibles.
 
-Los datos usan API-Football (API-Sports). Crea una cuenta en [API-Football](https://dashboard.api-football.com/), copia la clave y configúrala como `API_FOOTBALL_KEY` en el `.env` del servidor. El plan gratuito tiene una cuota diaria; el bot muestra un mensaje si falta la clave, no es válida o se agotó la cuota.
+  Los datos usan los endpoints públicos JSON de ESPN para `chi.1` (Primera División de Chile); no requieren API key. ESPN no publica documentación oficial para estos endpoints, así que su disponibilidad o formato puede cambiar.
 
 Los comandos deportivos se pueden usar desde cualquier canal de texto.
 

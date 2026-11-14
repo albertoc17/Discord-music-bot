@@ -39,7 +39,6 @@ class Settings:
     ffmpeg_executable: str = "ffmpeg"
     audio_bitrate: str = "128k"
     stats_database_path: str = "data/arturo_stats.sqlite3"
-    api_football_key: str = ""
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -66,5 +65,4 @@ class Settings:
             ffmpeg_executable=os.getenv("FFMPEG_EXECUTABLE", "ffmpeg"),
             audio_bitrate=os.getenv("AUDIO_BITRATE", "128k"),
             stats_database_path=os.getenv("STATS_DATABASE_PATH", "data/arturo_stats.sqlite3"),
-            api_football_key=os.getenv("API_FOOTBALL_KEY", "").strip(),
         )
