@@ -572,6 +572,14 @@ class Music(commands.Cog):
                 ("/stats", "Muestra las estadísticas musicales del mes"),
                 ("/leave", "Desconecta el bot del canal de voz"),
             ]),
+            ("⚽ **Fútbol chileno**", [
+                ("/tabla [temporada]", "Tabla de posiciones de Primera División"),
+                ("/goleadores [temporada]", "Máximos goleadores de la liga"),
+                ("/calendario [temporada] [fecha]", "Partidos y resultados de la liga"),
+                ("/partido [equipo] [temporada]", "Partidos recientes de un equipo"),
+                ("/equipo [nombre] [temporada]", "Ficha, campaña y próximos partidos"),
+                ("/jugador [nombre]", "Ficha y estadísticas resumidas del jugador"),
+            ]),
             ("⚙️ **Configuración**", [
                 ("/volume [nivel]", "Ajusta el volumen de 0 a 100"),
                 ("/quality [bitrate]", "Cambia la calidad de audio (64k, 96k, 128k, 192k, 256k)"),
