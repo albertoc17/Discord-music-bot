@@ -32,3 +32,20 @@ def test_parses_goleadores_from_espn_stats_table() -> None:
 def test_reads_score_objects_returned_by_espn() -> None:
     assert Sports._score({"score": {"displayValue": "2", "value": 2}}) == "2"
     assert Sports._score({"score": "1"}) == "1"
+
+
+def test_parses_player_stats_across_espn_categories() -> None:
+    payload = {
+        "splits": {
+            "categories": [
+                {"stats": [{"name": "appearances", "displayValue": "26"}]},
+                {"stats": [{"name": "totalGoals", "value": 29}]},
+            ]
+        }
+    }
+
+    assert Sports._stat_values(payload) == {"appearances": "26", "totalGoals": "29"}
+
+
+def test_formats_kickoff_in_chile_local_time() -> None:
+    assert Sports._local_match_date("2026-12-01T23:30:00Z") == "01/12 · 20:30"

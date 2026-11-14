@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from datetime import UTC, datetime
 from html import unescape
 from typing import Any
 
@@ -84,6 +85,41 @@ class Sports(commands.Cog):
                 return await response.text()
         except (aiohttp.ClientError, TimeoutError) as exc:
             raise SportsAPIError("No pude conectarme a ESPN.") from exc
+
+    async def _get_url(self, url: str) -> dict[str, Any]:
+        url = url.replace("sports.core.api.espn.pvt", "sports.core.api.espn.com")
+        try:
+            async with (
+                aiohttp.ClientSession(timeout=TIMEOUT) as session,
+                session.get(url) as response,
+            ):
+                if response.status != 200:
+                    raise SportsAPIError(f"ESPN respondió HTTP {response.status}.")
+                payload = await response.json(content_type=None)
+        except (aiohttp.ClientError, TimeoutError) as exc:
+            raise SportsAPIError("No pude conectarme a ESPN.") from exc
+        if not isinstance(payload, dict):
+            raise SportsAPIError("ESPN devolvió una respuesta inesperada.")
+        return payload
+
+    @staticmethod
+    def _stat_values(payload: dict[str, Any]) -> dict[str, str]:
+        result: dict[str, str] = {}
+        for category in payload.get("splits", {}).get("categories", []):
+            for stat in category.get("stats", []):
+                if isinstance(stat, dict):
+                    result[stat.get("name", "")] = str(
+                        stat.get("displayValue", stat.get("value", "-"))
+                    )
+        return result
+
+    @staticmethod
+    def _local_match_date(value: str) -> str:
+        try:
+            kickoff = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            return kickoff.astimezone().strftime("%d/%m · %H:%M")
+        except (ValueError, TypeError):
+            return value or "Fecha por confirmar"
 
     @staticmethod
     def _scorer_rows(page: str) -> list[list[str]]:
@@ -315,6 +351,10 @@ class Sports(commands.Cog):
             details = await self._get(
                 f"site/v2/sports/soccer/{LEAGUE}/teams/{team_id}", {"season": temporada}
             )
+            schedule = await self._get(
+                f"site/v2/sports/soccer/{LEAGUE}/teams/{team_id}/schedule",
+                {"season": temporada},
+            )
         except SportsAPIError as exc:
             await interaction.followup.send(embed=self._error_embed(str(exc)))
             return
@@ -343,36 +383,125 @@ class Sports(commands.Cog):
         )
         if logos:
             embed.set_thumbnail(url=logos[0].get("href"))
+        embed.add_field(
+            name="Posición en la tabla",
+            value=f"Puesto {stats.get('rank', '-')} · {stats.get('points', '-')} puntos",
+            inline=False,
+        )
         record = detail_team.get("record") or {}
         if record:
             embed.add_field(name="Récord", value=str(record.get("summary", "Sin dato")))
+        upcoming = []
+        now = datetime.now(UTC)
+        for event in schedule.get("events", []):
+            try:
+                kickoff = datetime.fromisoformat(event.get("date", "").replace("Z", "+00:00"))
+            except (ValueError, TypeError):
+                continue
+            competition = (event.get("competitions") or [{}])[0]
+            if kickoff <= now or competition.get("status", {}).get("type", {}).get("completed"):
+                continue
+            upcoming.append((kickoff, event, competition))
+        upcoming.sort(key=lambda item: item[0])
+        next_matches = []
+        for _, event, competition in upcoming[:3]:
+            competitors = competition.get("competitors", [])
+            opponent = next(
+                (
+                    competitor
+                    for competitor in competitors
+                    if str(competitor.get("team", {}).get("id")) != str(team_id)
+                ),
+                {},
+            )
+            home = next(
+                (competitor for competitor in competitors if competitor.get("homeAway") == "home"),
+                {},
+            )
+            opponent_name = opponent.get("team", {}).get("displayName", "Rival por confirmar")
+            venue = competition.get("venue", {})
+            venue_name = venue.get("fullName", "Estadio por confirmar")
+            versus = "vs" if str(home.get("team", {}).get("id")) == str(team_id) else "en"
+            next_matches.append(
+                f"• **{self._local_match_date(event.get('date', ''))}** {versus} "
+                f"**{discord.utils.escape_markdown(opponent_name)}**\n  🏟️ {venue_name}"
+            )
+        embed.add_field(
+            name="Próximos partidos",
+            value="\n".join(next_matches)
+            if next_matches
+            else "ESPN aún no informa próximos partidos.",
+            inline=False,
+        )
         await interaction.followup.send(embed=embed)
 
-    @app_commands.command(name="jugador", description="Busca un jugador de la liga chilena")
+    @app_commands.command(
+        name="jugador", description="Busca la ficha y estadísticas de un jugador chileno"
+    )
     @app_commands.describe(nombre="Nombre del jugador")
     async def jugador(self, interaction: discord.Interaction, nombre: str) -> None:
         await interaction.response.defer(thinking=True)
         try:
-            page = await self._get_text(
-                f"https://www.espn.com/soccer/stats/_/league/{LEAGUE}/view/scoring"
+            search = await self._get(
+                "search/v2", {"region": "us", "lang": "en", "query": nombre, "limit": "10"}
             )
+            players = [
+                player
+                for result in search.get("results", [])
+                if result.get("type") == "player"
+                for player in result.get("contents", [])
+            ]
+            query = nombre.casefold()
+            player = next(
+                (item for item in players if item.get("displayName", "").casefold() == query),
+                players[0] if players else None,
+            )
+            uid = player.get("uid", "") if player else ""
+            athlete_id_match = re.search(r"~a:(\d+)", uid)
+            if not athlete_id_match:
+                await interaction.followup.send(f"No encontré al jugador **{nombre}** en ESPN.")
+                return
+            athlete_id = athlete_id_match.group(1)
+            athlete = await self._get_url(
+                f"https://sports.core.api.espn.com/v2/sports/soccer/leagues/{LEAGUE}/athletes/{athlete_id}?lang=en&region=us"
+            )
+            stats_ref = athlete.get("statistics", {}).get("$ref")
+            stats_payload = await self._get_url(stats_ref) if stats_ref else {}
+            team_ref = athlete.get("defaultTeam", {}).get("$ref")
+            player_team = await self._get_url(team_ref) if team_ref else {}
         except SportsAPIError as exc:
             await interaction.followup.send(embed=self._error_embed(str(exc)))
             return
-        player = next(
-            (row for row in self._scorer_rows(page) if nombre.casefold() in row[1].casefold()),
-            None,
+        stats = self._stat_values(stats_payload)
+        position = athlete.get("position", {}).get("displayName", "Sin posición")
+        team_name = player_team.get("displayName", "Equipo sin dato")
+        nationality = athlete.get("citizenship") or athlete.get("citizenshipCountry", {}).get(
+            "name"
         )
-        if not player:
-            await interaction.followup.send(
-                f"No encontré a **{nombre}** entre los goleadores actuales de la liga chilena."
-            )
-            return
         embed = discord.Embed(
-            title=player[1],
-            description=f"{player[2]} · Primera División de Chile",
+            title=athlete.get("displayName", nombre),
+            description=f"{team_name} · {position}",
             color=discord.Color.gold(),
         )
-        embed.add_field(name="Partidos jugados", value=player[-2], inline=True)
-        embed.add_field(name="Goles", value=player[-1], inline=True)
+        if athlete.get("headshot", {}).get("href"):
+            embed.set_thumbnail(url=athlete["headshot"]["href"])
+        embed.add_field(name="Edad", value=str(athlete.get("age", "Sin dato")), inline=True)
+        embed.add_field(name="Nacionalidad", value=nationality or "Sin dato", inline=True)
+        embed.add_field(name="Dorsal", value=str(athlete.get("jersey", "Sin dato")), inline=True)
+        embed.add_field(
+            name="Temporada",
+            value=(
+                f"PJ {stats.get('appearances', '—')} · Goles {stats.get('totalGoals', '—')} · "
+                f"Asistencias {stats.get('goalAssists', '—')}"
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="Minutos y tarjetas",
+            value=(
+                f"Min {stats.get('minutes', '—')} · Amarillas {stats.get('yellowCards', '—')} · "
+                f"Rojas {stats.get('redCards', '—')}"
+            ),
+            inline=False,
+        )
         await interaction.followup.send(embed=embed)

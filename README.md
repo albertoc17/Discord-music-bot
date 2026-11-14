@@ -68,8 +68,8 @@ Tambien queda instalado el comando `discord-music-bot`.
 - `/tabla [temporada]`: tabla de posiciones, partidos jugados, diferencia de goles y puntos.
 - `/goleadores [temporada]`: máximos goleadores de la liga chilena.
 - `/calendario [temporada]`: próximos cinco partidos de la Liga de Primera.
-- `/equipo [nombre] [temporada]`: ficha, estadio y balance de temporada de un club chileno.
-- `/jugador [nombre] [temporada]`: equipo, posición y estadísticas de temporada disponibles.
+- `/equipo [nombre] [temporada]`: ficha y balance de temporada; incluye los próximos partidos con fecha, hora chilena y estadio cuando ESPN los publica.
+- `/jugador [nombre]`: ficha resumida con equipo, posición, edad, nacionalidad, dorsal y estadísticas de temporada disponibles.
 
   Los datos usan los endpoints públicos JSON de ESPN para `chi.1` (Primera División de Chile); no requieren API key. ESPN no publica documentación oficial para estos endpoints, así que su disponibilidad o formato puede cambiar.
 
