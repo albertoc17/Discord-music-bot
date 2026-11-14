@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+from html import unescape
 from typing import Any
 
 import aiohttp
@@ -46,18 +48,53 @@ class Sports(commands.Cog):
 
     @staticmethod
     def _groups(payload: dict[str, Any]) -> list[dict[str, Any]]:
-        standings = payload.get("standings", {})
-        if isinstance(standings, dict):
-            return [row for row in standings.get("entries", []) if isinstance(row, dict)]
-        if isinstance(standings, list):
-            return [
-                row
-                for group in standings
-                if isinstance(group, dict)
-                for row in group.get("entries", [])
-                if isinstance(row, dict)
-            ]
-        return []
+        def find_entries(value: Any) -> list[dict[str, Any]]:
+            if isinstance(value, dict):
+                standings = value.get("standings")
+                if isinstance(standings, dict) and isinstance(standings.get("entries"), list):
+                    return [row for row in standings["entries"] if isinstance(row, dict)]
+                entries = value.get("entries")
+                if (
+                    isinstance(entries, list)
+                    and entries
+                    and all(isinstance(row, dict) and "team" in row for row in entries)
+                ):
+                    return entries
+                for key in ("children", "groups", "standings"):
+                    found = find_entries(value.get(key))
+                    if found:
+                        return found
+            elif isinstance(value, list):
+                for item in value:
+                    found = find_entries(item)
+                    if found:
+                        return found
+            return []
+
+        return find_entries(payload)
+
+    async def _get_text(self, url: str) -> str:
+        try:
+            async with (
+                aiohttp.ClientSession(timeout=TIMEOUT) as session,
+                session.get(url) as response,
+            ):
+                if response.status != 200:
+                    raise SportsAPIError(f"ESPN respondió HTTP {response.status}.")
+                return await response.text()
+        except (aiohttp.ClientError, TimeoutError) as exc:
+            raise SportsAPIError("No pude conectarme a ESPN.") from exc
+
+    @staticmethod
+    def _scorer_rows(page: str) -> list[list[str]]:
+        rows = re.findall(r"<tr[^>]*data-idx=\"\d+\"[^>]*>(.*?)</tr>", page, re.S)
+        parsed = []
+        for row in rows:
+            cells = re.findall(r"<td[^>]*>(.*?)</td>", row, re.S)
+            values = [unescape(re.sub(r"<[^>]+>", "", cell)).strip() for cell in cells]
+            if len(values) >= 5:
+                parsed.append(values)
+        return parsed
 
     @staticmethod
     def _stats(row: dict[str, Any]) -> dict[str, Any]:
@@ -72,6 +109,13 @@ class Sports(commands.Cog):
     def _team_name(row: dict[str, Any]) -> str:
         team = row.get("team", {})
         return str(team.get("displayName") or team.get("name") or "Equipo")
+
+    @staticmethod
+    def _score(competitor: dict[str, Any]) -> str:
+        value = competitor.get("score", "-")
+        if isinstance(value, dict):
+            value = value.get("displayValue", value.get("value", "-"))
+        return str(value)
 
     @staticmethod
     def _error_embed(error: str) -> discord.Embed:
@@ -102,7 +146,7 @@ class Sports(commands.Cog):
         lines = []
         for row in rows[:20]:
             stats = self._stats(row)
-            rank = row.get("rank", "-")
+            rank = stats.get("rank", "-")
             played = stats.get("gamesPlayed", stats.get("played", "-"))
             diff = stats.get("pointDifferential", stats.get("goalDifference", "-"))
             points = stats.get("points", "-")
@@ -146,7 +190,7 @@ class Sports(commands.Cog):
                 discord.Embed(
                     title=(
                         f"{home.get('team', {}).get('displayName', '?')} "
-                        f"{home.get('score', '-')} - {away.get('score', '-')} "
+                        f"{self._score(home)} - {self._score(away)} "
                         f"{away.get('team', {}).get('displayName', '?')}"
                     ),
                     description=(
@@ -177,15 +221,28 @@ class Sports(commands.Cog):
                 await interaction.followup.send(f"No encontré **{equipo}** en esa temporada.")
                 return
             payload = await self._get(
-                f"site/v2/sports/soccer/{LEAGUE}/scoreboard",
-                {"limit": "100", "season": temporada, "team": str(team_id)},
+                f"site/v2/sports/soccer/{LEAGUE}/teams/{team_id}/schedule",
+                {"season": temporada},
             )
         except SportsAPIError as exc:
             await interaction.followup.send(embed=self._error_embed(str(exc)))
             return
         events = [event for event in payload.get("events", []) if isinstance(event, dict)]
+        now_played = [
+            event
+            for event in events
+            if (event.get("competitions") or [{}])[0]
+            .get("status", {})
+            .get("type", {})
+            .get("completed")
+        ]
+        chosen = sorted(
+            now_played or events,
+            key=lambda event: event.get("date", ""),
+            reverse=bool(now_played),
+        )[:5]
         embeds = []
-        for event in events[:5]:
+        for event in chosen:
             competition = (event.get("competitions") or [{}])[0]
             competitors = competition.get("competitors", [])
             home = next((team for team in competitors if team.get("homeAway") == "home"), {})
@@ -194,7 +251,7 @@ class Sports(commands.Cog):
                 discord.Embed(
                     title=(
                         f"{home.get('team', {}).get('displayName', '?')} "
-                        f"{home.get('score', '-')} - {away.get('score', '-')} "
+                        f"{self._score(home)} - {self._score(away)} "
                         f"{away.get('team', {}).get('displayName', '?')}"
                     ),
                     description=(
@@ -213,33 +270,21 @@ class Sports(commands.Cog):
     async def goleadores(self, interaction: discord.Interaction, temporada: str = "2026") -> None:
         await interaction.response.defer(thinking=True)
         try:
-            payload = await self._get(
-                f"site/v2/sports/soccer/{LEAGUE}/leaders", {"season": temporada}
+            page = await self._get_text(
+                f"https://www.espn.com/soccer/stats/_/league/{LEAGUE}/view/scoring?season={temporada}"
             )
         except SportsAPIError as exc:
             await interaction.followup.send(embed=self._error_embed(str(exc)))
             return
-        categories = payload.get("leaders", [])
-        goals = next(
-            (
-                category
-                for category in categories
-                if category.get("name") in {"totalGoals", "goals"}
-            ),
-            categories[0] if categories else {},
-        )
-        leaders = goals.get("leaders", [])
-        if not leaders:
+        rows = self._scorer_rows(page)
+        if not rows:
             await interaction.followup.send("ESPN no publicó goleadores para esa temporada.")
             return
-        lines = []
-        for index, leader in enumerate(leaders[:15], 1):
-            athlete = leader.get("athlete", {})
-            team = leader.get("team", {})
-            lines.append(
-                f"`{index:>2}` **{athlete.get('displayName', '?')}** · "
-                f"{team.get('displayName', 'Sin equipo')} · {leader.get('displayValue', '?')} goles"
-            )
+        lines = [
+            f"`{row[0]:>2}` **{discord.utils.escape_markdown(row[1])}** · "
+            f"{discord.utils.escape_markdown(row[2])} · {row[-1]} goles ({row[-2]} PJ)"
+            for row in rows[:15]
+        ]
         await interaction.followup.send(
             embed=discord.Embed(
                 title=f"Goleadores · Primera División {temporada}",
@@ -308,29 +353,26 @@ class Sports(commands.Cog):
     async def jugador(self, interaction: discord.Interaction, nombre: str) -> None:
         await interaction.response.defer(thinking=True)
         try:
-            payload = await self._get(
-                f"site/v2/sports/soccer/{LEAGUE}/athletes", {"search": nombre, "limit": "10"}
+            page = await self._get_text(
+                f"https://www.espn.com/soccer/stats/_/league/{LEAGUE}/view/scoring"
             )
         except SportsAPIError as exc:
             await interaction.followup.send(embed=self._error_embed(str(exc)))
             return
-        athletes = payload.get("items", payload.get("athletes", []))
-        if not athletes:
-            await interaction.followup.send(f"No encontré al jugador **{nombre}**.")
+        player = next(
+            (row for row in self._scorer_rows(page) if nombre.casefold() in row[1].casefold()),
+            None,
+        )
+        if not player:
+            await interaction.followup.send(
+                f"No encontré a **{nombre}** entre los goleadores actuales de la liga chilena."
+            )
             return
-        athlete = athletes[0]
         embed = discord.Embed(
-            title=athlete.get("displayName", nombre),
-            description=athlete.get("position", {}).get("displayName", "Jugador"),
+            title=player[1],
+            description=f"{player[2]} · Primera División de Chile",
             color=discord.Color.gold(),
         )
-        if athlete.get("headshot", {}).get("href"):
-            embed.set_thumbnail(url=athlete["headshot"]["href"])
-        for label, key in (
-            ("Edad", "age"),
-            ("Nacionalidad", "citizenship"),
-            ("Altura", "displayHeight"),
-        ):
-            if athlete.get(key):
-                embed.add_field(name=label, value=str(athlete[key]), inline=True)
+        embed.add_field(name="Partidos jugados", value=player[-2], inline=True)
+        embed.add_field(name="Goles", value=player[-1], inline=True)
         await interaction.followup.send(embed=embed)
