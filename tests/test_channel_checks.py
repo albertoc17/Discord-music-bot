@@ -21,6 +21,10 @@ from personal_music_bot.music import Music, MusicControls
         "jugador",
         "equipo",
         "goleadores",
+        "ping",
+        "status",
+        "restart",
+        "help",
     ],
 )
 @pytest.mark.parametrize("entrypoint", [MusicChannelCommandTree, MusicControls])
@@ -42,7 +46,19 @@ async def test_interactions_only_run_in_music_text_channel(
     if (
         entrypoint is MusicChannelCommandTree
         and command_name
-        in {"cuantomemide", "partido", "tabla", "calendario", "jugador", "equipo", "goleadores"}
+        not in {
+            "play",
+            "pause",
+            "resume",
+            "skip",
+            "stop",
+            "queue",
+            "nowplaying",
+            "leave",
+            "stats",
+            "quality",
+            "volume",
+        }
         and channel_type is discord.TextChannel
         and guild_id is not None
     ):
