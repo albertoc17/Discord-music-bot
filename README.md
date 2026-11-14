@@ -64,14 +64,16 @@ Tambien queda instalado el comando `discord-music-bot`.
 ## Comandos
 
 ### Deportes
-- `/partido [consulta]`: busca encuentros y muestra marcador, estado, fecha y estadio disponibles.
-- `/tabla [liga] [temporada]`: muestra posiciones, partidos jugados, diferencia de goles y puntos.
-- `/calendario [liga] [anteriores]`: consulta próximos partidos; activa `anteriores` para ver resultados recientes.
-- `/jugador [nombre]`: busca la ficha básica de un jugador.
+- `/partido [equipo] [temporada]`: muestra resultados recientes del equipo en la Liga de Primera de Chile.
+- `/tabla [temporada]`: tabla de posiciones, partidos jugados, diferencia de goles y puntos.
+- `/goleadores [temporada]`: máximos goleadores de la liga chilena.
+- `/calendario [temporada]`: próximos cinco partidos de la Liga de Primera.
+- `/equipo [nombre] [temporada]`: ficha, estadio y balance de temporada de un club chileno.
+- `/jugador [nombre] [temporada]`: equipo, posición y estadísticas de temporada disponibles.
 
-La fuente TheSportsDB gratuita solo ofrece tablas para algunas ligas destacadas y no publica una tabla fiable de goleadores por temporada. `/jugador` muestra datos biográficos, no estadísticas de temporada. Para incorporar goleadores con cobertura y temporadas consistentes hará falta una API de fútbol que exponga esas estadísticas y una clave configurada.
+Los datos usan API-Football (API-Sports). Crea una cuenta en [API-Football](https://dashboard.api-football.com/), copia la clave y configúrala como `API_FOOTBALL_KEY` en el `.env` del servidor. El plan gratuito tiene una cuota diaria; el bot muestra un mensaje si falta la clave, no es válida o se agotó la cuota.
 
-Las consultas deportivas usan TheSportsDB y requieren conexión a internet. Devuelve hasta cinco resultados por consulta.
+Los comandos deportivos se pueden usar desde cualquier canal de texto.
 
 - `/cuantomemide`: mide en broma a quien lo ejecuta, con un número aleatorio
   entre 1 y 47 cm y una talla según el resultado. Cada uso hace un nuevo sorteo.

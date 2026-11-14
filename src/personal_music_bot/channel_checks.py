@@ -5,7 +5,7 @@ from discord import app_commands
 
 from personal_music_bot.messages import wrong_channel_message
 
-ANY_CHANNEL_COMMANDS = {"partido", "tabla", "calendario", "jugador"}
+ANY_CHANNEL_COMMANDS = {"partido", "tabla", "calendario", "jugador", "equipo", "goleadores"}
 
 
 async def check_music_channel(interaction: discord.Interaction) -> bool:
