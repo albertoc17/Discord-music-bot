@@ -63,6 +63,16 @@ Tambien queda instalado el comando `discord-music-bot`.
 
 ## Comandos
 
+### Deportes
+- `/partido [consulta]`: busca encuentros y muestra marcador, estado, fecha y estadio disponibles.
+- `/tabla [liga] [temporada]`: muestra posiciones, partidos jugados, diferencia de goles y puntos.
+- `/calendario [liga] [anteriores]`: consulta próximos partidos; activa `anteriores` para ver resultados recientes.
+- `/jugador [nombre]`: busca la ficha básica de un jugador.
+
+La fuente TheSportsDB gratuita solo ofrece tablas para algunas ligas destacadas y no publica una tabla fiable de goleadores por temporada. `/jugador` muestra datos biográficos, no estadísticas de temporada. Para incorporar goleadores con cobertura y temporadas consistentes hará falta una API de fútbol que exponga esas estadísticas y una clave configurada.
+
+Las consultas deportivas usan TheSportsDB y requieren conexión a internet. Devuelve hasta cinco resultados por consulta.
+
 - `/cuantomemide`: mide en broma a quien lo ejecuta, con un número aleatorio
   entre 1 y 47 cm y una talla según el resultado. Cada uso hace un nuevo sorteo.
 

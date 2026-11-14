@@ -8,6 +8,7 @@ from discord.ext import commands
 from personal_music_bot.channel_checks import MusicChannelCommandTree
 from personal_music_bot.config import Settings
 from personal_music_bot.music import Music
+from personal_music_bot.sports import Sports
 from personal_music_bot.system_status import SystemStatus
 
 logger = logging.getLogger(__name__)
@@ -26,6 +27,7 @@ class PersonalAssistantBot(commands.Bot):
 
     async def setup_hook(self) -> None:
         await self.add_cog(Music(self, self.settings))
+        await self.add_cog(Sports(self))
         await self.add_cog(SystemStatus(self))
         if self.settings.guild_id:
             guild = discord.Object(id=self.settings.guild_id)
