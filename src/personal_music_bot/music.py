@@ -36,6 +36,7 @@ RADIO_STATIONS = {
         "https://playerservices.streamtheworld.com/api/livestream-redirect/ADN_SC",
     ),
 }
+RADIO_STATION_ORDER = tuple(RADIO_STATIONS)
 
 VOICE_CHANNEL_STATUS_RETRY_SECONDS = 10.0
 MONTH_NAMES = (
@@ -417,9 +418,7 @@ class Music(commands.Cog):
         )
         # La radio reemplaza la reproducción actual y la cola: las pistas
         # pendientes no deben empezar al terminar (la transmisión es infinita).
-        player.clear()
-        player.skip()
-        player.enqueue([track])
+        player.replace_current(track)
         await self._update_control_panel(player.guild_id)
         await interaction.edit_original_response(
             content=f"📻 Sintonizando **{station_name}** en vivo."
@@ -473,6 +472,30 @@ class Music(commands.Cog):
             if len(upcoming) > 10:
                 lines.append(f"...y {len(upcoming) - 10} mas.")
         await interaction.response.send_message("\n".join(lines))
+
+    async def next_radio(self, player: GuildPlayer) -> str:
+        """Sintoniza la siguiente emisora del ciclo y descarta la cola anterior."""
+        current_url = player.current.webpage_url if player.current else None
+        current_station = next(
+            (key for key, (_, url) in RADIO_STATIONS.items() if url == current_url),
+            None,
+        )
+        if current_station is None:
+            raise MusicCommandError("No hay una radio sonando ahora mismo.")
+
+        index = RADIO_STATION_ORDER.index(current_station)
+        next_key = RADIO_STATION_ORDER[(index + 1) % len(RADIO_STATION_ORDER)]
+        station_name, stream_url = RADIO_STATIONS[next_key]
+        previous_track = player.current
+        track = Track(
+            title=f"{station_name} · En vivo",
+            webpage_url=stream_url,
+            duration=None,
+            requester_id=previous_track.requester_id,
+            requester_name=previous_track.requester_name,
+        )
+        player.replace_current(track)
+        return station_name
 
     @app_commands.command(name="nowplaying", description="Muestra la pista actual")
     async def now_playing(self, interaction: discord.Interaction) -> None:
@@ -609,14 +632,17 @@ class Music(commands.Cog):
             ("🎵 **Música**", [
                 ("/play [búsqueda]", "Busca una canción o agrega una URL a la cola"),
                 ("/radio [emisora]", "Sintoniza Corazón, Cooperativa o ADN en vivo"),
+                ("Botón Siguiente", "Cambia a la siguiente radio cuando una emisora está sonando"),
                 ("/pause", "Pausa la música actual"),
                 ("/resume", "Reanuda la música pausada"),
                 ("/skip", "Salta a la siguiente canción"),
                 ("/stop", "Detiene la música y vacía la cola"),
-                ("/queue", "Muestra las próximas canciones en la cola"),
+                ("/queue", "Muestra la pista actual y las próximas canciones"),
                 ("/nowplaying", "Muestra la canción que está sonando"),
                 ("/stats", "Muestra las estadísticas musicales del mes"),
                 ("/leave", "Desconecta el bot del canal de voz"),
+                ("/volume [nivel]", "Ajusta el volumen de 0 a 100"),
+                ("/quality [bitrate]", "Cambia la calidad de audio"),
             ]),
             ("⚽ **Fútbol chileno**", [
                 ("/tabla [temporada]", "Tabla de posiciones de Primera División"),
@@ -627,8 +653,6 @@ class Music(commands.Cog):
                 ("/jugador [nombre]", "Ficha y estadísticas resumidas del jugador"),
             ]),
             ("⚙️ **Configuración**", [
-                ("/volume [nivel]", "Ajusta el volumen de 0 a 100"),
-                ("/quality [bitrate]", "Cambia la calidad de audio (64k, 96k, 128k, 192k, 256k)"),
                 ("/ping", "Muestra la latencia del bot"),
                 ("/status", "Muestra la version y el consumo de recursos"),
                 ("/restart", "Reinicia el bot (solo administradores)"),
@@ -758,6 +782,18 @@ class MusicControls(discord.ui.View):
     ) -> None:
         player = await self._player_for(interaction)
         if not player:
+            return
+
+        if player.current and any(
+            player.current.webpage_url == stream_url
+            for _, stream_url in RADIO_STATIONS.values()
+        ):
+            station_name = await self.music.next_radio(player)
+            await self.music._update_control_panel(player.guild_id)
+            await interaction.response.send_message(
+                f"📻 Cambiando a **{station_name}**.",
+                ephemeral=True,
+            )
             return
 
         if not player.skip():

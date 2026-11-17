@@ -128,6 +128,16 @@ class GuildPlayer:
         self._queue.extend(tracks)
         self._queue_ready.set()
 
+    def replace_current(self, track: Track) -> None:
+        """Reemplaza inmediatamente la pista actual y vacía lo que estaba en cola."""
+        self.clear()
+        if self.current:
+            self._queue.appendleft(track)
+            self._queue_ready.set()
+            self.skip()
+            return
+        self.enqueue([track])
+
     def skip(self) -> bool:
         if not self.current:
             return False
