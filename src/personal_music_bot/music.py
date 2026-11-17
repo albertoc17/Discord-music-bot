@@ -26,9 +26,15 @@ from personal_music_bot.statistics import StatisticsStore
 logger = logging.getLogger(__name__)
 
 RADIO_STATIONS = {
-    "corazon": ("Radio Corazón", "https://redirector.dps.live/corazon/mp3/icecast.audio"),
+    "corazon": (
+        "Radio Corazón",
+        "https://playerservices.streamtheworld.com/api/livestream-redirect/CORAZON_SC",
+    ),
     "cooperativa": ("Radio Cooperativa", "https://redirector.dps.live/cooperativafm/mp3/icecast.audio"),
-    "adn": ("ADN Radio", "https://redirector.dps.live/adn/mp3/icecast.audio"),
+    "adn": (
+        "ADN Radio",
+        "https://playerservices.streamtheworld.com/api/livestream-redirect/ADN_SC",
+    ),
 }
 
 VOICE_CHANNEL_STATUS_RETRY_SECONDS = 10.0
