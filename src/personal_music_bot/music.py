@@ -25,6 +25,12 @@ from personal_music_bot.statistics import StatisticsStore
 
 logger = logging.getLogger(__name__)
 
+RADIO_STATIONS = {
+    "corazon": ("Radio Corazón", "https://redirector.dps.live/corazon/mp3/icecast.audio"),
+    "cooperativa": ("Radio Cooperativa", "https://redirector.dps.live/cooperativafm/mp3/icecast.audio"),
+    "adn": ("ADN Radio", "https://redirector.dps.live/adn/mp3/icecast.audio"),
+}
+
 VOICE_CHANNEL_STATUS_RETRY_SECONDS = 10.0
 MONTH_NAMES = (
     "",
@@ -380,6 +386,39 @@ class Music(commands.Cog):
             content=self._queued_message(tracks, self.resolver.max_playlist_items)
         )
 
+    @app_commands.command(name="radio", description="Sintoniza una radio chilena en vivo")
+    @app_commands.describe(emisora="Elige Radio Corazón, Cooperativa o ADN")
+    @app_commands.choices(emisora=[
+        app_commands.Choice(name="Radio Corazón", value="corazon"),
+        app_commands.Choice(name="Radio Cooperativa", value="cooperativa"),
+        app_commands.Choice(name="ADN Radio", value="adn"),
+    ])
+    async def radio(self, interaction: discord.Interaction, emisora: str) -> None:
+        await interaction.response.defer(thinking=True)
+        try:
+            player = await self._connect(interaction)
+        except MusicCommandError as exc:
+            await interaction.edit_original_response(content=str(exc))
+            return
+
+        station_name, stream_url = RADIO_STATIONS[emisora]
+        track = Track(
+            title=f"{station_name} · En vivo",
+            webpage_url=stream_url,
+            duration=None,
+            requester_id=interaction.user.id,
+            requester_name=interaction.user.display_name,
+        )
+        # La radio reemplaza la reproducción actual y la cola: las pistas
+        # pendientes no deben empezar al terminar (la transmisión es infinita).
+        player.clear()
+        player.skip()
+        player.enqueue([track])
+        await self._update_control_panel(player.guild_id)
+        await interaction.edit_original_response(
+            content=f"📻 Sintonizando **{station_name}** en vivo."
+        )
+
     @app_commands.command(name="pause", description="Pausa la musica")
     async def pause(self, interaction: discord.Interaction) -> None:
         player = self._player(interaction)
@@ -563,6 +602,7 @@ class Music(commands.Cog):
             ]),
             ("🎵 **Música**", [
                 ("/play [búsqueda]", "Busca una canción o agrega una URL a la cola"),
+                ("/radio [emisora]", "Sintoniza Corazón, Cooperativa o ADN en vivo"),
                 ("/pause", "Pausa la música actual"),
                 ("/resume", "Reanuda la música pausada"),
                 ("/skip", "Salta a la siguiente canción"),
