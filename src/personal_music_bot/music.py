@@ -35,6 +35,34 @@ RADIO_STATIONS = {
         "ADN Radio",
         "https://playerservices.streamtheworld.com/api/livestream-redirect/ADN_SC",
     ),
+    "biobio": (
+        "Radio Bío-Bío",
+        "https://redirector.dps.live/biobiosantiago/mp3/icecast.audio",
+    ),
+    "activa": (
+        "RadioActiva",
+        "https://playerservices.streamtheworld.com/api/livestream-redirect/ACTIVA_SC",
+    ),
+    "fmdos": (
+        "FMDOS",
+        "https://playerservices.streamtheworld.com/api/livestream-redirect/FMDOS_SC",
+    ),
+    "futuro": (
+        "Radio Futuro · Rock",
+        "https://playerservices.streamtheworld.com/api/livestream-redirect/FUTURO_SC",
+    ),
+    "rockandpop": (
+        "Rock & Pop",
+        "https://playerservices.streamtheworld.com/api/livestream-redirect/ROCK_AND_POP_SC",
+    ),
+    "los40": (
+        "LOS40 Chile",
+        "https://playerservices.streamtheworld.com/api/livestream-redirect/LOS40_CHILE_SC",
+    ),
+    "pudahuel": (
+        "Radio Pudahuel",
+        "https://playerservices.streamtheworld.com/api/livestream-redirect/PUDAHUEL_SC",
+    ),
 }
 RADIO_STATION_ORDER = tuple(RADIO_STATIONS)
 
@@ -394,11 +422,18 @@ class Music(commands.Cog):
         )
 
     @app_commands.command(name="radio", description="Sintoniza una radio chilena en vivo")
-    @app_commands.describe(emisora="Elige Radio Corazón, Cooperativa o ADN")
+    @app_commands.describe(emisora="Elige una de las 10 radios chilenas")
     @app_commands.choices(emisora=[
         app_commands.Choice(name="Radio Corazón", value="corazon"),
         app_commands.Choice(name="Radio Cooperativa", value="cooperativa"),
         app_commands.Choice(name="ADN Radio", value="adn"),
+        app_commands.Choice(name="Radio Bío-Bío", value="biobio"),
+        app_commands.Choice(name="RadioActiva", value="activa"),
+        app_commands.Choice(name="FMDOS", value="fmdos"),
+        app_commands.Choice(name="Radio Futuro · Rock", value="futuro"),
+        app_commands.Choice(name="Rock & Pop", value="rockandpop"),
+        app_commands.Choice(name="LOS40 Chile", value="los40"),
+        app_commands.Choice(name="Radio Pudahuel", value="pudahuel"),
     ])
     async def radio(self, interaction: discord.Interaction, emisora: str) -> None:
         await interaction.response.defer(thinking=True)
@@ -631,7 +666,7 @@ class Music(commands.Cog):
             ]),
             ("🎵 **Música**", [
                 ("/play [búsqueda]", "Busca una canción o agrega una URL a la cola"),
-                ("/radio [emisora]", "Sintoniza Corazón, Cooperativa o ADN en vivo"),
+                ("/radio [emisora]", "Elige entre 10 radios chilenas, incluida Futuro (rock)"),
                 ("Botón Siguiente", "Cambia a la siguiente radio cuando una emisora está sonando"),
                 ("/pause", "Pausa la música actual"),
                 ("/resume", "Reanuda la música pausada"),

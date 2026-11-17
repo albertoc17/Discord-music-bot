@@ -86,7 +86,7 @@ mensajes privados tampoco están habilitados.
 
 ### Música
 - `/play [búsqueda]`: busca o agrega una canción, URL o playlist a la cola.
-- `/radio [emisora]`: sintoniza Radio Corazón, Cooperativa o ADN en vivo; reemplaza la reproducción y la cola actual.
+- `/radio [emisora]`: elige entre 10 radios chilenas (incluye Radio Futuro, enfocada en rock); reemplaza la reproducción y la cola actual.
 - `/pause`: pausa la música actual.
 - `/resume`: continúa la música pausada.
 - `/skip`: salta a la siguiente canción.
